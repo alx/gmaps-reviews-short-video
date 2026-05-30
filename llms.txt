@@ -1,0 +1,174 @@
+# gmaps-reviews-short-video
+
+> Generate a 7-second 1080×1920 short-form video from a Google Maps business URL,
+> combining a Ken Burns photo slideshow, star-rating overlay, top customer reviews,
+> and optional background music — ready for Instagram Reels, TikTok, or YouTube Shorts.
+
+Source: https://github.com/alx/gmaps-reviews-short-video
+
+## What this tool does
+
+Given a Google Maps business URL, the tool fetches the place's name, rating, review
+count, photos, and top reviews via the Google Maps Places API (New). It then composes a
+7-second portrait video (H.264, 1080×1920) with a Ken Burns zoom slideshow of up to 5
+photos, a semi-transparent header showing the star rating and business name, up to 3
+customer review cards timed across the video, and a 2-second outro card with the
+business name and website. Optionally adds background music with fade-in/out, and can
+upload the finished video directly to YouTube.
+
+## Setup
+
+### Prerequisites
+
+- Python 3.11+
+- [`uv`](https://docs.astral.sh/uv/) package manager
+- `ffmpeg` installed and available on `PATH`
+- A Google Maps Platform API key with **Places API (New)** enabled
+
+### One-time setup
+
+```bash
+git clone https://github.com/alx/gmaps-reviews-short-video.git
+cd gmaps-reviews-short-video
+cp .env.example .env
+# Edit .env and set GOOGLE_MAPS_API_KEY
+uv sync
+```
+
+### .env file
+
+```
+GOOGLE_MAPS_API_KEY=<your_google_maps_api_key>
+YOUTUBE_CLIENT_SECRETS=client_secrets.json   # only needed for --publish
+```
+
+## CLI usage
+
+```bash
+uv run gmaps-reviews-short-video "<google_maps_url>"
+```
+
+### Arguments
+
+| Argument | Required | Default | Description |
+|---|---|---|---|
+| `url` | YES | — | Google Maps business URL (full or shortened) |
+| `--output FILE` | no | `output/output.mp4` | Output MP4 path |
+| `--music FILE` | no | _(none)_ | Path to MP3/WAV for background music |
+| `--publish` | no | off | Upload to YouTube after generation |
+
+### Examples
+
+```bash
+# Minimal — just the URL
+uv run gmaps-reviews-short-video "https://www.google.com/maps/place/..."
+
+# Custom output path with background music
+uv run gmaps-reviews-short-video "https://www.google.com/maps/place/..." \
+  --output output/my_business.mp4 \
+  --music mp3/alec_koff-carnaval-484622.mp3
+
+# Generate and publish to YouTube
+uv run gmaps-reviews-short-video "https://www.google.com/maps/place/..." \
+  --music mp3/alec_koff-carnaval-484622.mp3 \
+  --publish
+```
+
+A bundled royalty-free music track is at `mp3/alec_koff-carnaval-484622.mp3`.
+
+## Output
+
+| Property | Value |
+|---|---|
+| Format | MP4 (H.264 video, AAC audio when music provided) |
+| Resolution | 1080×1920 (portrait / 9:16) |
+| Duration | 7 seconds |
+| Frame rate | 30 fps |
+| Default path | `output/output.mp4` |
+
+The output directory (`output/`) is included in the repo with a `.gitkeep`.
+
+## Key source files
+
+| File | Role |
+|---|---|
+| `src/main.py` | CLI entry point — argparse, env loading, orchestration |
+| `src/gmaps.py` | Google Maps Places API v1 client — place ID extraction, photo download, review filtering |
+| `src/video.py` | MoviePy video composition engine — Ken Burns, review cards, outro, header |
+| `src/youtube.py` | YouTube Data API v3 upload with OAuth 2.0 and token caching |
+| `.env.example` | Environment variable template |
+| `pyproject.toml` | Project metadata, dependencies, entry-point declaration |
+
+## Common tasks for AI agents
+
+1. **Generate a video (no music)**
+   ```bash
+   uv run gmaps-reviews-short-video "https://www.google.com/maps/place/..."
+   ```
+
+2. **Generate a video with background music**
+   ```bash
+   uv run gmaps-reviews-short-video "https://www.google.com/maps/place/..." \
+     --music mp3/alec_koff-carnaval-484622.mp3
+   ```
+
+3. **Generate and immediately publish to YouTube**
+   ```bash
+   uv run gmaps-reviews-short-video "https://www.google.com/maps/place/..." \
+     --music mp3/alec_koff-carnaval-484622.mp3 \
+     --publish
+   ```
+
+4. **Run tests**
+   ```bash
+   uv sync --group dev
+   uv run pytest
+   ```
+
+5. **Install dependencies after cloning**
+   ```bash
+   uv sync
+   ```
+
+## Video composition details
+
+- **Background:** up to 5 business photos, each with 1.08× Ken Burns zoom, 0.5 s crossfades
+- **Header (top 150 px):** semi-transparent dark bar — star rating + business name (truncated to 32 chars)
+- **Review cards:** up to 3 cards, time-distributed — author, star rating, review text (truncated to 240 chars); only reviews with ≥ 4 stars and ≥ 60-character text are included
+- **Outro card (last 2 s):** business name + website URL, centered with fade-in
+- **Global fade:** 0.5 s fade-in from black and fade-out to black
+
+## YouTube publishing (optional)
+
+### Setup
+
+1. Enable **YouTube Data API v3** in Google Cloud Console
+2. Create **OAuth 2.0 credentials** (Desktop app type) → download `client_secrets.json`
+3. Add to `.env`:
+   ```
+   YOUTUBE_CLIENT_SECRETS=client_secrets.json
+   ```
+4. First run opens a browser for OAuth consent; token is cached at
+   `~/.config/reviewreel/token.json` for all subsequent runs
+
+### Published video properties
+
+- **Title:** `{business_name} — Google Maps Reviews`
+- **Category:** People & Blogs (22)
+- **Tags:** `google maps`, `reviews`, `local business`
+- **Privacy:** Public
+- **Description:** includes rating, review count, Google Maps URL, website URL, and a
+  link back to this open-source project
+
+## URL handling
+
+- Full Google Maps URLs with place IDs (`ChIJ…` format): extracted directly
+- Shortened URLs (`goo.gl`, `maps.app`): resolved via HTTP redirect
+- URLs without a place ID: falls back to text search by business name
+
+## Environment variables reference
+
+| Variable | Required | Description |
+|---|---|---|
+| `GOOGLE_MAPS_API_KEY` | YES | Google Maps Platform API key (Places API New) |
+| `YOUTUBE_CLIENT_SECRETS` | only for `--publish` | Path to OAuth 2.0 Desktop credentials JSON |

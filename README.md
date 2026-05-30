@@ -49,6 +49,7 @@ uv run gmaps-reviews-short-video \
 |------|---------|-------------|
 | `--output FILE` | `output/output.mp4` | Output video file path |
 | `--music FILE` | _(none)_ | Path to an MP3/WAV for background music |
+| `--publish` | _(off)_ | Upload to YouTube after generation |
 
 ## Development
 
@@ -59,9 +60,39 @@ uv run pytest
 
 ## Sample Music
 
-`mp3/alec_koff-carnaval-484622.mp3` — "Carnaval" by Alec Koff, licensed from
-[Pixabay](https://pixabay.com/music/samba-latin-carnaval-484622/) under the
+`mp3/alec_koff-carnaval-484622.mp3` — "Carnaval" by Alec Koff, used under the
 [Pixabay Content License](mp3/samba-latin-carnaval-484622-license.txt).
+
+## YouTube Publishing
+
+Add `--publish` to upload the generated video directly to your YouTube channel (**ReviewReel**) after generation.
+
+### Setup
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/) and enable the **YouTube Data API v3**
+2. Create **OAuth 2.0 credentials** (Desktop app type) and download `client_secrets.json`
+3. Set the path in your `.env`:
+   ```
+   YOUTUBE_CLIENT_SECRETS=path/to/client_secrets.json
+   ```
+4. On first use, a browser window will open for OAuth consent. The token is cached at `~/.config/reviewreel/token.json` for subsequent runs.
+
+### Usage
+
+```bash
+uv run gmaps-reviews-short-video \
+  "https://www.google.com/maps/place/..." \
+  --music mp3/alec_koff-carnaval-484622.mp3 \
+  --publish
+```
+
+### Options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--output FILE` | `output/output.mp4` | Output video file path |
+| `--music FILE` | _(none)_ | Path to an MP3/WAV for background music |
+| `--publish` | _(off)_ | Upload to YouTube after generation |
 
 ## License
 

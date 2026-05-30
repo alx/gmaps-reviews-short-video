@@ -1,0 +1,75 @@
+import os
+import pathlib
+import sys
+
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+from googleapiclient.http import MediaFileUpload
+
+SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
+TOKEN_PATH = pathlib.Path.home() / ".config" / "reviewreel" / "token.json"
+
+
+def authenticate():
+    """Return an authenticated YouTube API service, prompting OAuth if needed."""
+    secrets_path = os.environ.get("YOUTUBE_CLIENT_SECRETS")
+    if not secrets_path or not os.path.exists(secrets_path):
+        print(
+            "Error: YOUTUBE_CLIENT_SECRETS not set or file not found.\n"
+            "Download OAuth 2.0 credentials from Google Cloud Console and set the path in .env",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    creds = None
+    TOKEN_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    if TOKEN_PATH.exists():
+        creds = Credentials.from_authorized_user_file(str(TOKEN_PATH), SCOPES)
+
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(secrets_path, SCOPES)
+            creds = flow.run_local_server(port=0)
+        TOKEN_PATH.write_text(creds.to_json())
+
+    return build("youtube", "v3", credentials=creds)
+
+
+def upload_video(service, video_path: str, title: str, description: str) -> str:
+    """Upload video to YouTube and return its URL."""
+    body = {
+        "snippet": {
+            "title": title,
+            "description": description,
+            "tags": ["google maps", "reviews", "local business"],
+            "categoryId": "22",
+        },
+        "status": {
+            "privacyStatus": "public",
+            "selfDeclaredMadeForKids": True,
+        },
+    }
+
+    media = MediaFileUpload(video_path, mimetype="video/mp4", resumable=True)
+
+    try:
+        request = service.videos().insert(
+            part=",".join(body.keys()),
+            body=body,
+            media_body=media,
+        )
+        response = None
+        while response is None:
+            _, response = request.next_chunk()
+    except HttpError as e:
+        print(f"Error uploading to YouTube: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    video_id = response["id"]
+    return f"https://youtu.be/{video_id}"
