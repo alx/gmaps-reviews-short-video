@@ -1,0 +1,30 @@
+# Secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Virtual environment
+.venv/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# Generated media (root-level only — mp3/ folder is committed)
+/*.mp4
+/*.mp3
+
+# Output folder contents
+output/*
+!output/.gitkeep
+
+# IDE / OS
+.DS_Store
+*.swp
+Thumbs.db
+*.html
