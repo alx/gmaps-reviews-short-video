@@ -86,7 +86,6 @@ def main() -> None:
             "This video was automatically created from public Google Maps data.\n\n"
             "---\n"
             "OPEN SOURCE\n"
-            "Source code:\n"
             "https://github.com/alx/gmaps-reviews-short-video"
         )
 
