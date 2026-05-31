@@ -132,6 +132,10 @@ def main() -> None:
                     rating = details.get("rating", 0.0)
                     review_count = details.get("userRatingCount", 0)
                     website_url = details.get("websiteUri", "")
+                    city, country, country_code = gmaps.get_location(details, client)
+                    _loc = details.get("location", {})
+                    lat = _loc.get("latitude", 0.0)
+                    lon = _loc.get("longitude", 0.0)
 
                     raw_photos = details.get("photos", [])
                     photo_paths = gmaps.download_photos(raw_photos, client, tmpdir)
@@ -165,6 +169,11 @@ def main() -> None:
                             output_path=out,
                             maps_url=maps_url,
                             music_offset=music_offset,
+                            city=city,
+                            country=country,
+                            country_code=country_code,
+                            lat=lat,
+                            lon=lon,
                         )
                         metadata = {
                             "generated_at": datetime.now().isoformat(timespec="seconds"),

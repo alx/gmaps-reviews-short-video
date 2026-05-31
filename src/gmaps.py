@@ -58,11 +58,69 @@ def get_place_details(place_id: str, client: httpx.Client) -> dict:
     resp = client.get(
         f"{BASE_URL}/places/{place_id}",
         headers={
-            "X-Goog-FieldMask": "id,displayName,rating,userRatingCount,reviews,photos,websiteUri"
+            "X-Goog-FieldMask": "id,displayName,rating,userRatingCount,reviews,photos,websiteUri,addressComponents,location"
         },
     )
     resp.raise_for_status()
     return resp.json()
+
+
+def _extract_location(details: dict) -> tuple[str, str, str]:
+    """Return (city, country_name, country_code) from addressComponents.
+
+    Priority for city: locality → administrative_area_level_2 → administrative_area_level_1.
+    Empty strings when nothing is found.
+    """
+    city = country_name = country_code = ""
+    level2 = level1 = ""
+    for component in details.get("addressComponents", []):
+        types = component.get("types", [])
+        if "locality" in types and not city:
+            city = component.get("longText", "")
+        if "administrative_area_level_2" in types and not level2:
+            level2 = component.get("longText", "")
+        if "administrative_area_level_1" in types and not level1:
+            level1 = component.get("longText", "")
+        if "country" in types:
+            country_name = component.get("longText", "")
+            country_code = component.get("shortText", "")
+    return city or level2 or level1, country_name, country_code
+
+
+def _find_nearby_city(lat: float, lng: float, client: httpx.Client, radius_m: int = 5000) -> str:
+    """Search for the nearest locality within radius_m metres of the given coordinates."""
+    resp = client.post(
+        f"{BASE_URL}/places:searchNearby",
+        json={
+            "includedTypes": ["locality"],
+            "locationRestriction": {
+                "circle": {
+                    "center": {"latitude": lat, "longitude": lng},
+                    "radius": radius_m,
+                }
+            },
+        },
+        headers={"X-Goog-FieldMask": "places.displayName"},
+    )
+    if not resp.is_success:
+        return ""
+    places = resp.json().get("places", [])
+    return places[0].get("displayName", {}).get("text", "") if places else ""
+
+
+def get_location(details: dict, client: httpx.Client) -> tuple[str, str, str]:
+    """Return (city, country_name, country_code).
+
+    Uses addressComponents with fallback chain (locality → level_2 → level_1).
+    If addressComponents yields nothing, falls back to a nearby Places search.
+    """
+    city, country_name, country_code = _extract_location(details)
+    if not city:
+        loc = details.get("location", {})
+        lat, lng = loc.get("latitude"), loc.get("longitude")
+        if lat is not None and lng is not None:
+            city = _find_nearby_city(lat, lng, client)
+    return city, country_name, country_code
 
 
 def download_photos(
@@ -126,6 +184,7 @@ def resolve_url(url: str, api_key: str, photo_dir: str) -> dict:
         rating = details.get("rating", 0.0)
         review_count = details.get("userRatingCount", 0)
         website_url = details.get("websiteUri", "")
+        city, country, country_code = get_location(details, client)
 
         raw_photos = details.get("photos", [])
         photo_paths = download_photos(raw_photos, client, photo_dir)
@@ -133,6 +192,7 @@ def resolve_url(url: str, api_key: str, photo_dir: str) -> dict:
         raw_reviews = details.get("reviews", [])
         reviews = select_best_reviews(raw_reviews, count=5)
 
+        loc = details.get("location", {})
         return {
             "business_name": business_name,
             "rating": rating,
@@ -140,4 +200,9 @@ def resolve_url(url: str, api_key: str, photo_dir: str) -> dict:
             "reviews": reviews,
             "photo_paths": photo_paths,
             "website_url": website_url,
+            "city": city,
+            "country": country,
+            "country_code": country_code,
+            "latitude": loc.get("latitude", 0.0),
+            "longitude": loc.get("longitude", 0.0),
         }

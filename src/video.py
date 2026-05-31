@@ -17,10 +17,13 @@ from moviepy import afx, vfx
 
 W, H = 1080, 1920
 TOTAL = 12.0
+MAP_DUR = 3.0    # map slide between review and outro
 CROSSFADE = 0.5
 FADE = 0.5       # global fade-in from black / fade-to-black duration
 OUTRO_DUR = 5.0  # seconds the outro card is visible before the video ends
 TITLE_DUR = 2.0  # seconds the title card is visible at the start
+
+_OSM_CARTO = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 # Safe zone on the right (UI chrome)
 SAFE_RIGHT  = 160
 # Review card — large, spans most of the visible frame
@@ -191,7 +194,11 @@ def truncate_review(text: str, limit: int = 100) -> str:
     return truncated.rstrip('.,;') + '…'
 
 
-def make_review_card(review: dict, font_path: str, font_bold_path: str) -> tuple[np.ndarray, np.ndarray]:
+def _country_flag(code: str) -> str:
+    return "".join(chr(0x1F1E6 + ord(c) - ord("A")) for c in code.upper() if c.isalpha())
+
+
+def make_review_card(review: dict, font_path: str, font_bold_path: str) -> tuple[np.ndarray, np.ndarray, int]:
     pad = 48
     y_start = 32
     line_h = 60
@@ -237,12 +244,13 @@ def make_review_card(review: dict, font_path: str, font_bold_path: str) -> tuple
         y += line_h
 
     alpha = np.array(card.split()[3]).astype(float) / 255.0
-    return np.array(card.convert("RGB")), alpha
+    return np.array(card.convert("RGB")), alpha, actual_h
 
 
 def make_outro_card(
     business_name: str, website_url: str, font_bold: str, font_reg: str,
     maps_url: str = "",
+    city: str = "", country: str = "", country_code: str = "",
 ) -> ImageClip:
     QR_SIZE = 600
     QR_PAD = 40  # space between text block and QR code
@@ -260,14 +268,23 @@ def make_outro_card(
         url_font = ImageFont.truetype(font_reg, 32)
     except Exception:
         url_font = ImageFont.load_default()
+    try:
+        loc_font = ImageFont.truetype(font_reg, 40)
+    except Exception:
+        loc_font = ImageFont.load_default()
 
     name_lines = textwrap.wrap(business_name, width=20) or [business_name]
     line_h = 80
     has_url = bool(website_url)
-    text_h = len(name_lines) * line_h + (60 if has_url else 0)
+    has_loc = bool(city or country)
+    LOC_LINE_H = 56
+    LOC_GAP = 16
+    LOC_TOP_PAD = 24
+    loc_h = (LOC_TOP_PAD + LOC_LINE_H + LOC_GAP + LOC_LINE_H) if has_loc else 0
+    text_h = len(name_lines) * line_h + (60 if has_url else 0) + loc_h
     POST_QR_PAD  = 24
-    LABEL_LINE_H = 52
-    CTA_LINE_H   = 44
+    LABEL_LINE_H = 104
+    CTA_LINE_H   = 88
     LINE_GAP     = 10
     has_qr = bool(maps_url)
     post_qr_h = (POST_QR_PAD + LABEL_LINE_H + LINE_GAP + CTA_LINE_H) if has_qr else 0
@@ -286,6 +303,20 @@ def make_outro_card(
         url_x = (W - (url_bbox[2] - url_bbox[0])) // 2
         draw.text((url_x, url_y), short_url, font=url_font, fill=(170, 170, 170, 255))
 
+    if has_loc:
+        emoji_fp = find_emoji_font()
+        name_block_bottom = text_top + len(name_lines) * line_h + (60 if has_url else 0)
+        loc_y = name_block_bottom + LOC_TOP_PAD
+        if city:
+            city_bbox = draw.textbbox((0, 0), city, font=loc_font)
+            city_x = (W - (city_bbox[2] - city_bbox[0])) // 2
+            draw.text((city_x, loc_y), city, font=loc_font, fill=(200, 200, 200, 255))
+        loc_y += LOC_LINE_H + LOC_GAP
+        if country:
+            flag = _country_flag(country_code) + " " if country_code else ""
+            _draw_mixed_text(frame, draw, loc_y, f"{flag}{country}",
+                             loc_font, emoji_fp, (200, 200, 200, 255), LOC_LINE_H, W)
+
     if has_qr:
         qr_img = qrcode.make(maps_url).convert("RGBA").resize(
             (QR_SIZE, QR_SIZE), Image.Resampling.LANCZOS
@@ -295,8 +326,8 @@ def make_outro_card(
         frame.paste(qr_img, (qr_x, qr_y), qr_img)
 
         try:
-            label_font = ImageFont.truetype(font_reg, 36)
-            cta_font   = ImageFont.truetype(font_reg, 30)
+            label_font = ImageFont.truetype(font_reg, 72)
+            cta_font   = ImageFont.truetype(font_reg, 60)
         except Exception:
             label_font = cta_font = ImageFont.load_default()
 
@@ -306,7 +337,7 @@ def make_outro_card(
 
         _draw_mixed_text(frame, draw, label_y, "📍 Google Maps ⬆",
                          label_font, emoji_fp, (200, 200, 200, 255), LABEL_LINE_H, W)
-        _draw_mixed_text(frame, draw, cta_y, "📤 Share this Short to share the QR Code",
+        _draw_mixed_text(frame, draw, cta_y, "📤 Share this QR Code",
                          cta_font, emoji_fp, (150, 150, 150, 255), CTA_LINE_H, W)
 
     alpha = np.array(frame.split()[3]).astype(float) / 255.0
@@ -316,10 +347,18 @@ def make_outro_card(
     return clip.with_mask(mask)
 
 
-def make_title_card(business_name: str, rating: float, font_bold: str, font_reg: str) -> ImageClip:
-    frame = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    bg = Image.new("RGBA", (W, H), (10, 10, 15, 230))
-    frame.paste(bg)
+def make_title_card(
+    business_name: str, rating: float, font_bold: str, font_reg: str,
+    photo_path: str | None = None,
+    city: str = "", country: str = "", country_code: str = "",
+) -> ImageClip:
+    frame = Image.new("RGBA", (W, H), (0, 0, 0, 255))
+    if photo_path:
+        photo = Image.fromarray(load_and_fit_image(photo_path)).convert("RGBA")
+        photo.putalpha(77)  # ~30% opacity
+        frame = Image.alpha_composite(frame, photo)
+    dark_overlay = Image.new("RGBA", (W, H), (10, 10, 15, 170))
+    frame = Image.alpha_composite(frame, dark_overlay)
     draw = ImageDraw.Draw(frame)
 
     try:
@@ -330,11 +369,20 @@ def make_title_card(business_name: str, rating: float, font_bold: str, font_reg:
         star_font = ImageFont.truetype(font_reg, 52)
     except Exception:
         star_font = ImageFont.load_default()
+    try:
+        loc_font = ImageFont.truetype(font_reg, 44)
+    except Exception:
+        loc_font = ImageFont.load_default()
 
     name_lines = textwrap.wrap(business_name, width=16) or [business_name]
     line_h = 100
     stars_text = "★" * round(rating) + "☆" * (5 - round(rating)) + f"  {rating:.1f}"
-    total_text_h = len(name_lines) * line_h + 80
+    has_loc = bool(city or country)
+    LOC_LINE_H = 60
+    LOC_GAP = 12
+    LOC_TOP_PAD = 20
+    loc_h = (LOC_TOP_PAD + LOC_LINE_H + LOC_GAP + LOC_LINE_H) if has_loc else 0
+    total_text_h = len(name_lines) * line_h + 80 + loc_h
     text_top = (H - total_text_h) // 2
 
     for i, line in enumerate(name_lines):
@@ -348,11 +396,80 @@ def make_title_card(business_name: str, rating: float, font_bold: str, font_reg:
     stars_x = (W - (stars_bbox[2] - stars_bbox[0])) // 2
     draw.text((stars_x, stars_y), stars_text, font=star_font, fill=(255, 210, 50, 255))
 
+    if has_loc:
+        emoji_fp = find_emoji_font()
+        loc_y = stars_y + 56 + LOC_TOP_PAD  # below stars line
+        if city:
+            city_bbox = draw.textbbox((0, 0), city, font=loc_font)
+            city_x = (W - (city_bbox[2] - city_bbox[0])) // 2
+            draw.text((city_x, loc_y), city, font=loc_font, fill=(255, 255, 255, 255))
+        loc_y += LOC_LINE_H + LOC_GAP
+        if country:
+            flag = _country_flag(country_code) + " " if country_code else ""
+            _draw_mixed_text(frame, draw, loc_y, f"{flag}{country}",
+                             loc_font, emoji_fp, (255, 255, 255, 255), LOC_LINE_H, W)
+
     alpha = np.array(frame.split()[3]).astype(float) / 255.0
     rgb = np.array(frame.convert("RGB"))
     clip = ImageClip(rgb)
     mask = ImageClip(alpha, is_mask=True)
     return clip.with_mask(mask)
+
+
+def make_map_slide(
+    lat: float,
+    lon: float,
+    business_name: str,
+    city: str = "",
+    zoom: int = 15,
+) -> ImageClip | None:
+    try:
+        from staticmap import StaticMap, CircleMarker
+    except ImportError:
+        return None
+
+    try:
+        m = StaticMap(W, H, url_template=_OSM_CARTO)
+        m.add_marker(CircleMarker((lon, lat), "white", 28))
+        m.add_marker(CircleMarker((lon, lat), "#FF3333", 18))
+        img = m.render(zoom=zoom, center=[lon, lat])
+    except Exception as exc:
+        print(f"  Warning: map slide skipped ({exc})")
+        return None
+
+    img = img.convert("RGBA")
+    overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+
+    BAR_H = 220
+    bar = Image.new("RGBA", (W, BAR_H), (0, 0, 0, 185))
+    overlay.paste(bar, (0, H - BAR_H))
+
+    draw = ImageDraw.Draw(overlay)
+    font_bold = find_font()
+    font_reg = find_font_regular()
+    try:
+        city_font = ImageFont.truetype(font_bold, 56)
+    except Exception:
+        city_font = ImageFont.load_default()
+    try:
+        name_font = ImageFont.truetype(font_reg, 38)
+    except Exception:
+        name_font = ImageFont.load_default()
+
+    y = H - BAR_H + 28
+    if city:
+        bbox = draw.textbbox((0, 0), city, font=city_font)
+        draw.text(((W - (bbox[2] - bbox[0])) // 2, y), city, font=city_font,
+                  fill=(255, 255, 255, 255))
+        y += 72
+    short_name = business_name if len(business_name) <= 30 else business_name[:29] + "…"
+    bbox = draw.textbbox((0, 0), short_name, font=name_font)
+    draw.text(((W - (bbox[2] - bbox[0])) // 2, y), short_name, font=name_font,
+              fill=(200, 200, 200, 255))
+
+    img = Image.alpha_composite(img, overlay)
+    rgb = np.array(img.convert("RGB"))
+    return ImageClip(rgb)
 
 
 def make_header(business_name: str, rating: float, font_bold: str) -> list:
@@ -407,6 +524,11 @@ def build_video(
     music_path: str | None = None,
     maps_url: str = "",
     music_offset: float = 0.0,
+    city: str = "",
+    country: str = "",
+    country_code: str = "",
+    lat: float = 0.0,
+    lon: float = 0.0,
 ) -> None:
     font_bold = find_font()
     font_reg = find_font_regular()
@@ -414,12 +536,16 @@ def build_video(
     if not photo_paths:
         raise ValueError("No photos available to build video")
 
+    map_clip_raw = make_map_slide(lat, lon, business_name, city) if (lat and lon) else None
+    has_map = map_clip_raw is not None
+    effective_total = TOTAL + (MAP_DUR if has_map else 0)
+
     n = min(len(photo_paths), 5)
     photos = random.sample(photo_paths, n)
 
-    # Each photo's visible duration so total = TOTAL seconds
+    # Each photo's visible duration so total = effective_total seconds
     # With crossfades: total = n * clip_dur - (n-1) * CROSSFADE
-    clip_dur = (TOTAL + (n - 1) * CROSSFADE) / n
+    clip_dur = (effective_total + (n - 1) * CROSSFADE) / n
 
     # Build photo clips with Ken Burns + crossfade
     photo_clips = []
@@ -433,21 +559,23 @@ def build_video(
 
     # Title card — full-screen intro for the first TITLE_DUR seconds
     title_clip = (
-        make_title_card(business_name, rating, font_bold, font_reg)
+        make_title_card(business_name, rating, font_bold, font_reg,
+                        photo_path=photos[0],
+                        city=city, country=country, country_code=country_code)
         .with_duration(TITLE_DUR)
         .with_effects([vfx.FadeOut(CROSSFADE)])
         .with_start(0)
         .with_position("center")
     )
 
-    # Single review card — visible from title fade-out through outro fade-in
+    # Single review card — visible from title fade-out through map/outro fade-in
     review_clips = []
     if reviews:
         review_start = TITLE_DUR - CROSSFADE
-        review_end = TOTAL - OUTRO_DUR
+        review_end = effective_total - OUTRO_DUR - (MAP_DUR if has_map else 0)
         review_dur = review_end - review_start
 
-        rgb_arr, alpha_arr = make_review_card(reviews[0], font_reg, font_bold)
+        rgb_arr, alpha_arr, card_h = make_review_card(reviews[0], font_reg, font_bold)
         card_clip = ImageClip(rgb_arr)
         mask_clip = ImageClip(alpha_arr, is_mask=True)
         card_clip = (
@@ -456,31 +584,45 @@ def build_video(
             .with_duration(review_dur)
             .with_effects([vfx.CrossFadeIn(CROSSFADE)])
             .with_start(review_start)
-            .with_position((CARD_X, CARD_Y_TOP))
+            .with_position((CARD_X, CARD_Y_BOT - card_h))
         )
         review_clips.append(card_clip)
 
+    # Map slide — city context with business pinpoint, between review and outro
+    map_clips = []
+    if has_map:
+        map_start = effective_total - OUTRO_DUR - MAP_DUR
+        map_slide = (
+            map_clip_raw
+            .with_duration(MAP_DUR)
+            .with_effects([vfx.CrossFadeIn(CROSSFADE)])
+            .with_start(map_start)
+            .with_position("center")
+        )
+        map_clips.append(map_slide)
+
     # Outro card — business name + URL + QR code, visible for the last OUTRO_DUR seconds
-    outro_clip = make_outro_card(business_name, website_url, font_bold, font_reg, maps_url)
+    outro_clip = make_outro_card(business_name, website_url, font_bold, font_reg, maps_url,
+                                 city=city, country=country, country_code=country_code)
     outro_clip = (
         outro_clip
         .with_duration(OUTRO_DUR)
         .with_effects([vfx.CrossFadeIn(CROSSFADE)])
-        .with_start(TOTAL - OUTRO_DUR)
+        .with_start(effective_total - OUTRO_DUR)
         .with_position("center")
     )
 
-    all_clips = photo_clips + review_clips + [title_clip, outro_clip]
+    all_clips = photo_clips + review_clips + map_clips + [title_clip, outro_clip]
     final = (
         CompositeVideoClip(all_clips, size=(W, H))
-        .with_duration(TOTAL)
+        .with_duration(effective_total)
         .with_effects([vfx.FadeIn(FADE), vfx.FadeOut(FADE)])
     )
 
     if music_path:
         audio = (
             AudioFileClip(music_path)
-            .subclipped(music_offset, music_offset + TOTAL)
+            .subclipped(music_offset, music_offset + effective_total)
             .with_effects([afx.AudioFadeIn(FADE), afx.AudioFadeOut(FADE)])
         )
         final = final.with_audio(audio)

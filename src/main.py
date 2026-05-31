@@ -166,6 +166,11 @@ def main() -> None:
                 music_path=args.music,
                 maps_url=args.url,
                 music_offset=music_offset,
+                city=place_data.get("city", ""),
+                country=place_data.get("country", ""),
+                country_code=place_data.get("country_code", ""),
+                lat=place_data.get("latitude", 0.0),
+                lon=place_data.get("longitude", 0.0),
             )
             metadata = {
                 "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
