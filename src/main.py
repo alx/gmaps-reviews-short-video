@@ -169,13 +169,17 @@ def main() -> None:
                 city=place_data.get("city", ""),
                 country=place_data.get("country", ""),
                 country_code=place_data.get("country_code", ""),
-                lat=place_data.get("latitude", 0.0),
-                lon=place_data.get("longitude", 0.0),
+                lat=place_data.get("lat"),
+                lng=place_data.get("lng"),
             )
             metadata = {
                 "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
                 "maps_url": args.url,
+                "place_id": place_data.get("place_id", ""),
                 "business_name": place_data["business_name"],
+                "address": place_data.get("address", ""),
+                "lat": place_data.get("lat"),
+                "lng": place_data.get("lng"),
                 "rating": place_data["rating"],
                 "review_count": place_data["review_count"],
                 "website_url": place_data.get("website_url", ""),
@@ -202,7 +206,11 @@ def main() -> None:
         print("Uploading to YouTube...")
         service = youtube.authenticate()
         for out in output_paths:
-            yt_url = youtube.upload_video(service, out, title=title, description=description)
+            yt_url = youtube.upload_video(
+                service, out, title=title, description=description,
+                lat=place_data.get("lat"), lng=place_data.get("lng"),
+                location_description=place_data["business_name"],
+            )
             print(f"Published → {yt_url}")
             json_path = os.path.splitext(out)[0] + ".json"
             try:

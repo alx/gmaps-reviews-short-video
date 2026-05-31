@@ -58,7 +58,7 @@ def get_place_details(place_id: str, client: httpx.Client) -> dict:
     resp = client.get(
         f"{BASE_URL}/places/{place_id}",
         headers={
-            "X-Goog-FieldMask": "id,displayName,rating,userRatingCount,reviews,photos,websiteUri,addressComponents,location"
+            "X-Goog-FieldMask": "id,displayName,rating,userRatingCount,reviews,photos,websiteUri,addressComponents,location,formattedAddress"
         },
     )
     resp.raise_for_status()
@@ -162,9 +162,14 @@ def select_best_reviews(reviews: list[dict], count: int = 1) -> list[dict]:
     return candidates[:count]
 
 
-def resolve_url(url: str, api_key: str, photo_dir: str) -> dict:
+def fetch_place_metadata(url: str, api_key: str) -> dict:
+    """Phase 1: Resolve URL → place details without downloading photos.
+
+    Returns dict with keys: place_id, business_name, rating, review_count,
+    reviews_raw (all reviews from API), reviews (best filtered), raw_photos
+    (photo dicts from API, not downloaded), website_url, maps_url.
+    """
     with _client(api_key) as client:
-        # Follow short URL redirects
         if "goo.gl" in url or "maps.app" in url:
             resp = client.head(url)
             url = str(resp.url)
@@ -185,24 +190,82 @@ def resolve_url(url: str, api_key: str, photo_dir: str) -> dict:
         review_count = details.get("userRatingCount", 0)
         website_url = details.get("websiteUri", "")
         city, country, country_code = get_location(details, client)
-
         raw_photos = details.get("photos", [])
-        photo_paths = download_photos(raw_photos, client, photo_dir)
-
-        raw_reviews = details.get("reviews", [])
-        reviews = select_best_reviews(raw_reviews, count=5)
-
+        reviews_raw = details.get("reviews", [])
+        reviews = select_best_reviews(reviews_raw, count=5)
         loc = details.get("location", {})
+        lat = loc.get("latitude")
+        lng = loc.get("longitude")
+        address = details.get("formattedAddress", "")
+
         return {
+            "place_id": place_id,
             "business_name": business_name,
             "rating": rating,
             "review_count": review_count,
+            "reviews_raw": reviews_raw,
             "reviews": reviews,
-            "photo_paths": photo_paths,
+            "raw_photos": raw_photos,
             "website_url": website_url,
             "city": city,
             "country": country,
             "country_code": country_code,
-            "latitude": loc.get("latitude", 0.0),
-            "longitude": loc.get("longitude", 0.0),
+            "maps_url": url,
+            "lat": lat,
+            "lng": lng,
+            "address": address,
         }
+
+
+def download_selected_photos(
+    raw_photos: list[dict],
+    api_key: str,
+    photo_dir: str,
+    indices: list[int] | None = None,
+    max_photos: int = 10,
+    width: int = 1080,
+    height: int = 1920,
+) -> list[str]:
+    """Phase 2: Download photos at given indices (or all up to max_photos).
+
+    Returns list of local file paths in the requested order.
+    """
+    if indices is None:
+        selected = list(enumerate(raw_photos[:max_photos]))
+    else:
+        selected = [(i, raw_photos[i]) for i in indices if i < len(raw_photos)]
+
+    with _client(api_key) as client:
+        paths = []
+        for slot, (_orig_idx, photo) in enumerate(selected):
+            name = photo["name"].removesuffix("/media")
+            resp = client.get(
+                f"{BASE_URL}/{name}/media",
+                params={"maxWidthPx": width, "maxHeightPx": height},
+            )
+            resp.raise_for_status()
+            out = Path(photo_dir) / f"photo_{slot}.jpg"
+            out.write_bytes(resp.content)
+            paths.append(str(out))
+    return paths
+
+
+def resolve_url(url: str, api_key: str, photo_dir: str) -> dict:
+    meta = fetch_place_metadata(url, api_key)
+    photo_paths = download_selected_photos(meta["raw_photos"], api_key, photo_dir)
+    return {
+        "place_id": meta["place_id"],
+        "business_name": meta["business_name"],
+        "rating": meta["rating"],
+        "review_count": meta["review_count"],
+        "reviews": meta["reviews"],
+        "photo_paths": photo_paths,
+        "website_url": meta["website_url"],
+        "city": meta["city"],
+        "country": meta["country"],
+        "country_code": meta["country_code"],
+        "maps_url": meta["maps_url"],
+        "lat": meta["lat"],
+        "lng": meta["lng"],
+        "address": meta["address"],
+    }

@@ -24,8 +24,11 @@ build/
 output/*
 !output/.gitkeep
 
+# Flask web UI runtime workspace
+web_workspace/
+
 # IDE / OS
 .DS_Store
 *.swp
 Thumbs.db
-*.html
+/*.html

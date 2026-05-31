@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% set active_step = 4 %}
+
+{% block title %}ReviewReel – Generating Video{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h2>Generating video…</h2>
+  <p class="muted" style="margin-bottom:1.5rem">
+    Downloading full-resolution photos and rendering the video. This typically takes 2–5 minutes.
+  </p>
+
+  {% include "partials/progress.html" %}
+
+  <div class="actions">
+    <a href="/step3" class="btn btn-outline">← Back to Params</a>
+  </div>
+</div>
+{% endblock %}

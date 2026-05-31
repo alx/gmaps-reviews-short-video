@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% set active_step = 1 %}
+
+{% block title %}ReviewReel – Fetching Place Data{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h2>Fetching place data…</h2>
+  <p class="muted" style="margin-bottom:1.5rem">
+    Looking up the business, downloading photo previews. This takes a few seconds.
+  </p>
+
+  {% include "partials/progress.html" %}
+
+  <div class="actions">
+    <a href="/" class="btn btn-outline">← Start Over</a>
+  </div>
+</div>
+{% endblock %}

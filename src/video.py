@@ -418,7 +418,7 @@ def make_title_card(
 
 def make_map_slide(
     lat: float,
-    lon: float,
+    lng: float,
     business_name: str,
     city: str = "",
     zoom: int = 15,
@@ -430,9 +430,9 @@ def make_map_slide(
 
     try:
         m = StaticMap(W, H, url_template=_OSM_CARTO)
-        m.add_marker(CircleMarker((lon, lat), "white", 28))
-        m.add_marker(CircleMarker((lon, lat), "#FF3333", 18))
-        img = m.render(zoom=zoom, center=[lon, lat])
+        m.add_marker(CircleMarker((lng, lat), "white", 28))
+        m.add_marker(CircleMarker((lng, lat), "#FF3333", 18))
+        img = m.render(zoom=zoom, center=[lng, lat])
     except Exception as exc:
         print(f"  Warning: map slide skipped ({exc})")
         return None
@@ -527,8 +527,8 @@ def build_video(
     city: str = "",
     country: str = "",
     country_code: str = "",
-    lat: float = 0.0,
-    lon: float = 0.0,
+    lat: float | None = None,
+    lng: float | None = None,
 ) -> None:
     font_bold = find_font()
     font_reg = find_font_regular()
@@ -536,7 +536,7 @@ def build_video(
     if not photo_paths:
         raise ValueError("No photos available to build video")
 
-    map_clip_raw = make_map_slide(lat, lon, business_name, city) if (lat and lon) else None
+    map_clip_raw = make_map_slide(lat, lng, business_name, city) if (lat and lng) else None
     has_map = map_clip_raw is not None
     effective_total = TOTAL + (MAP_DUR if has_map else 0)
 
@@ -634,6 +634,10 @@ def build_video(
         "-metadata", f"comment={comment}",
         "-metadata", f"year={datetime.date.today().year}",
     ]
+    if lat is not None and lng is not None:
+        # ISO 6709 annex H format: ±DD.DDDD±DDD.DDDD/
+        location_str = f"{lat:+.6f}{lng:+.6f}/"
+        metadata_params += ["-metadata", f"location={location_str}"]
     final.write_videofile(
         output_path,
         fps=fps,

@@ -133,9 +133,16 @@ def main() -> None:
                     review_count = details.get("userRatingCount", 0)
                     website_url = details.get("websiteUri", "")
                     city, country, country_code = gmaps.get_location(details, client)
-                    _loc = details.get("location", {})
-                    lat = _loc.get("latitude", 0.0)
-                    lon = _loc.get("longitude", 0.0)
+                    loc = details.get("location", {})
+                    lat = loc.get("latitude")
+                    lng = loc.get("longitude")
+                    # Fall back to GeoJSON geometry when Places API returns no coords
+                    if lat is None or lng is None:
+                        geom_coords = (feature.get("geometry") or {}).get("coordinates")
+                        if geom_coords and len(geom_coords) >= 2:
+                            lng, lat = geom_coords[0], geom_coords[1]
+                    api_address = details.get("formattedAddress", "")
+                    address = api_address or address
 
                     raw_photos = details.get("photos", [])
                     photo_paths = gmaps.download_photos(raw_photos, client, tmpdir)
@@ -173,7 +180,7 @@ def main() -> None:
                             country=country,
                             country_code=country_code,
                             lat=lat,
-                            lon=lon,
+                            lng=lng,
                         )
                         metadata = {
                             "generated_at": datetime.now().isoformat(timespec="seconds"),
@@ -184,6 +191,8 @@ def main() -> None:
                             "category": category,
                             "address": address,
                             "phone": phone,
+                            "lat": lat,
+                            "lng": lng,
                             "rating": rating,
                             "review_count": review_count,
                             "website_url": website_url,
@@ -209,7 +218,8 @@ def main() -> None:
                     )
                     for out in generated_paths:
                         yt_url = youtube.upload_video(
-                            yt_service, out, title=title, description=description
+                            yt_service, out, title=title, description=description,
+                            lat=lat, lng=lng, location_description=business_name,
                         )
                         row["youtube_url"] = yt_url
                         print(f"{prefix} — Published → {yt_url}")
