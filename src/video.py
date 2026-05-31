@@ -1,8 +1,10 @@
 import datetime
 import os
+import random
 import textwrap
 
 import numpy as np
+import qrcode
 from PIL import Image, ImageDraw, ImageFont
 from moviepy import (
     AudioFileClip,
@@ -14,13 +16,19 @@ from moviepy import (
 from moviepy import afx, vfx
 
 W, H = 1080, 1920
-TOTAL = 7.0
+TOTAL = 12.0
 CROSSFADE = 0.5
 FADE = 0.5       # global fade-in from black / fade-to-black duration
-OUTRO_DUR = 2.0  # seconds the outro card is visible before the video ends
-HEADER_H = 150
-CARD_H = 420
-CARD_MARGIN = 40
+OUTRO_DUR = 5.0  # seconds the outro card is visible before the video ends
+TITLE_DUR = 2.0  # seconds the title card is visible at the start
+# Safe zone on the right (UI chrome)
+SAFE_RIGHT  = 160
+# Review card — large, spans most of the visible frame
+CARD_Y_TOP  = 120
+CARD_Y_BOT  = 1560
+CARD_H      = CARD_Y_BOT - CARD_Y_TOP   # 1440
+CARD_W      = W - SAFE_RIGHT             # 920
+CARD_X      = (W - CARD_W) // 2         # 80
 
 
 def find_font() -> str:
@@ -51,6 +59,91 @@ def find_font_regular() -> str:
         if os.path.exists(f):
             return f
     return find_font()
+
+
+def find_emoji_font() -> str | None:
+    path = "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf"
+    return path if os.path.exists(path) else None
+
+
+_EMOJI_FONT_SIZE = 109  # NotoColorEmoji only has bitmap strikes at this size
+
+
+def _is_emoji(ch: str) -> bool:
+    cp = ord(ch)
+    return cp > 0x2600 and cp not in (0xFE0F, 0x200D)
+
+
+def _draw_mixed_text(
+    frame: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    y: int,
+    text: str,
+    text_font,
+    emoji_font_path: str | None,
+    fill: tuple,
+    line_h: int,
+    canvas_w: int,
+) -> None:
+    """Render text with inline color emoji, centered horizontally on canvas_w."""
+    # Split into (is_emoji, segment) runs
+    runs: list[tuple[bool, str]] = []
+    for ch in text:
+        if ch in ("️", "‍"):
+            continue
+        is_e = _is_emoji(ch)
+        if runs and runs[-1][0] == is_e:
+            runs[-1] = (is_e, runs[-1][1] + ch)
+        else:
+            runs.append((is_e, ch))
+
+    emoji_font = None
+    if emoji_font_path:
+        try:
+            emoji_font = ImageFont.truetype(emoji_font_path, _EMOJI_FONT_SIZE)
+        except Exception:
+            pass
+
+    # Measure total width to center
+    total_w = 0
+    for is_e, seg in runs:
+        if is_e and emoji_font:
+            tmp = Image.new("RGBA", (300, 200), (0, 0, 0, 0))
+            td = ImageDraw.Draw(tmp)
+            bb = td.textbbox((0, 0), seg, font=emoji_font, embedded_color=True)
+            raw_w, raw_h = bb[2] - bb[0], bb[3] - bb[1]
+            scale = line_h / raw_h if raw_h else 1.0
+            total_w += int(raw_w * scale)
+        else:
+            bb = draw.textbbox((0, 0), seg, font=text_font)
+            total_w += bb[2] - bb[0]
+
+    x = (canvas_w - total_w) // 2
+
+    for is_e, seg in runs:
+        if is_e and emoji_font:
+            tmp = Image.new("RGBA", (300, 200), (0, 0, 0, 0))
+            td = ImageDraw.Draw(tmp)
+            td.text((0, 0), seg, font=emoji_font, embedded_color=True)
+            bb = td.textbbox((0, 0), seg, font=emoji_font, embedded_color=True)
+            raw_w = bb[2] - bb[0]
+            raw_h = bb[3] - bb[1]
+            if raw_h == 0:
+                continue
+            scale = line_h / raw_h
+            scaled_w = max(1, int(raw_w * scale))
+            scaled_h = max(1, line_h)
+            glyph = tmp.crop((bb[0], bb[1], bb[2], bb[3]))
+            glyph = glyph.resize((scaled_w, scaled_h), Image.Resampling.LANCZOS)
+            paste_y = y + (line_h - scaled_h) // 2
+            frame.paste(glyph, (x, paste_y), glyph)
+            x += scaled_w
+        else:
+            bb = draw.textbbox((0, 0), seg, font=text_font)
+            seg_h = bb[3] - bb[1]
+            seg_y = y + (line_h - seg_h) // 2
+            draw.text((x, seg_y), seg, font=text_font, fill=fill)
+            x += bb[2] - bb[0]
 
 
 def load_and_fit_image(path: str, target_w: int = W, target_h: int = H) -> np.ndarray:
@@ -91,59 +184,69 @@ def make_ken_burns_clip(path: str, duration: float, zoom: float = 1.08) -> Video
     return VideoClip(make_frame, duration=duration)
 
 
+def truncate_review(text: str, limit: int = 100) -> str:
+    if len(text) <= limit:
+        return text
+    truncated = text[:limit].rsplit(' ', 1)[0]
+    return truncated.rstrip('.,;') + '…'
+
+
 def make_review_card(review: dict, font_path: str, font_bold_path: str) -> tuple[np.ndarray, np.ndarray]:
-    card = Image.new("RGBA", (W, CARD_H), (0, 0, 0, 0))
-    bg = Image.new("RGBA", (W, CARD_H), (15, 15, 15, 210))
+    pad = 48
+    y_start = 32
+    line_h = 60
+
+    text = truncate_review(review["text"])
+    lines = textwrap.wrap(text, width=34)
+
+    # Size the card to exactly fit the content
+    actual_h = y_start + 66 + 24 + len(lines) * line_h + pad
+    actual_h = min(actual_h, CARD_H)
+
+    card = Image.new("RGBA", (CARD_W, actual_h), (0, 0, 0, 0))
+    bg = Image.new("RGBA", (CARD_W, actual_h), (15, 15, 15, 210))
     card.paste(bg, (0, 0))
     draw = ImageDraw.Draw(card)
 
-    pad = 48
-    y = 36
+    y = y_start
 
     # Star rating + author line
     stars = "★" * int(review["rating"]) + "☆" * (5 - int(review["rating"]))
     author = review["author"] or "Customer"
     header_text = f"{stars}  {author}"
     try:
-        hfont = ImageFont.truetype(font_bold_path, 34)
+        hfont = ImageFont.truetype(font_bold_path, 44)
     except Exception:
         hfont = ImageFont.load_default()
-    draw.text((pad, y), header_text, font=hfont, fill=(255, 210, 50, 255))
-    y += 52
+    draw.text((pad, y), header_text, font=hfont, fill=(255, 210, 50, 255),
+              stroke_width=2, stroke_fill=(0, 0, 0, 255))
+    y += 66
 
     # Divider
-    draw.line([(pad, y), (W - pad, y)], fill=(255, 255, 255, 60), width=1)
-    y += 20
-
-    # Review text (word-wrapped)
-    text = review["text"]
-    if len(text) > 240:
-        text = text[:237] + "…"
+    draw.line([(pad, y), (CARD_W - pad, y)], fill=(255, 255, 255, 60), width=1)
+    y += 24
 
     try:
-        rfont = ImageFont.truetype(font_path, 36)
+        rfont = ImageFont.truetype(font_path, 42)
     except Exception:
         rfont = ImageFont.load_default()
 
-    # Wrap text to fit within card width
-    max_chars = 42
-    lines = textwrap.wrap(text, width=max_chars)
-    max_lines = 6
-    if len(lines) > max_lines:
-        lines = lines[:max_lines]
-        lines[-1] = lines[-1].rstrip() + "…"
-
     for line in lines:
-        draw.text((pad, y), line, font=rfont, fill=(240, 240, 240, 255))
-        y += 46
+        draw.text((pad, y), line, font=rfont, fill=(240, 240, 240, 255),
+                  stroke_width=3, stroke_fill=(0, 0, 0, 255))
+        y += line_h
 
     alpha = np.array(card.split()[3]).astype(float) / 255.0
     return np.array(card.convert("RGB")), alpha
 
 
 def make_outro_card(
-    business_name: str, website_url: str, font_bold: str, font_reg: str
+    business_name: str, website_url: str, font_bold: str, font_reg: str,
+    maps_url: str = "",
 ) -> ImageClip:
+    QR_SIZE = 600
+    QR_PAD = 40  # space between text block and QR code
+
     frame = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     bg = Image.new("RGBA", (W, H), (10, 10, 15, 210))
     frame.paste(bg)
@@ -161,8 +264,15 @@ def make_outro_card(
     name_lines = textwrap.wrap(business_name, width=20) or [business_name]
     line_h = 80
     has_url = bool(website_url)
-    total_text_h = len(name_lines) * line_h + (60 if has_url else 0)
-    text_top = (H - total_text_h) // 2
+    text_h = len(name_lines) * line_h + (60 if has_url else 0)
+    POST_QR_PAD  = 24
+    LABEL_LINE_H = 52
+    CTA_LINE_H   = 44
+    LINE_GAP     = 10
+    has_qr = bool(maps_url)
+    post_qr_h = (POST_QR_PAD + LABEL_LINE_H + LINE_GAP + CTA_LINE_H) if has_qr else 0
+    total_block_h = text_h + (QR_PAD + QR_SIZE if has_qr else 0) + post_qr_h
+    text_top = (H - total_block_h) // 2
 
     for i, line in enumerate(name_lines):
         bbox = draw.textbbox((0, 0), line, font=name_font)
@@ -175,6 +285,68 @@ def make_outro_card(
         url_bbox = draw.textbbox((0, 0), short_url, font=url_font)
         url_x = (W - (url_bbox[2] - url_bbox[0])) // 2
         draw.text((url_x, url_y), short_url, font=url_font, fill=(170, 170, 170, 255))
+
+    if has_qr:
+        qr_img = qrcode.make(maps_url).convert("RGBA").resize(
+            (QR_SIZE, QR_SIZE), Image.Resampling.LANCZOS
+        )
+        qr_x = (W - QR_SIZE) // 2
+        qr_y = text_top + text_h + QR_PAD
+        frame.paste(qr_img, (qr_x, qr_y), qr_img)
+
+        try:
+            label_font = ImageFont.truetype(font_reg, 36)
+            cta_font   = ImageFont.truetype(font_reg, 30)
+        except Exception:
+            label_font = cta_font = ImageFont.load_default()
+
+        label_y = qr_y + QR_SIZE + POST_QR_PAD
+        cta_y   = label_y + LABEL_LINE_H + LINE_GAP
+        emoji_fp = find_emoji_font()
+
+        _draw_mixed_text(frame, draw, label_y, "📍 Google Maps ⬆",
+                         label_font, emoji_fp, (200, 200, 200, 255), LABEL_LINE_H, W)
+        _draw_mixed_text(frame, draw, cta_y, "📤 Share this Short to share the QR Code",
+                         cta_font, emoji_fp, (150, 150, 150, 255), CTA_LINE_H, W)
+
+    alpha = np.array(frame.split()[3]).astype(float) / 255.0
+    rgb = np.array(frame.convert("RGB"))
+    clip = ImageClip(rgb)
+    mask = ImageClip(alpha, is_mask=True)
+    return clip.with_mask(mask)
+
+
+def make_title_card(business_name: str, rating: float, font_bold: str, font_reg: str) -> ImageClip:
+    frame = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    bg = Image.new("RGBA", (W, H), (10, 10, 15, 230))
+    frame.paste(bg)
+    draw = ImageDraw.Draw(frame)
+
+    try:
+        name_font = ImageFont.truetype(font_bold, 80)
+    except Exception:
+        name_font = ImageFont.load_default()
+    try:
+        star_font = ImageFont.truetype(font_reg, 52)
+    except Exception:
+        star_font = ImageFont.load_default()
+
+    name_lines = textwrap.wrap(business_name, width=16) or [business_name]
+    line_h = 100
+    stars_text = "★" * round(rating) + "☆" * (5 - round(rating)) + f"  {rating:.1f}"
+    total_text_h = len(name_lines) * line_h + 80
+    text_top = (H - total_text_h) // 2
+
+    for i, line in enumerate(name_lines):
+        bbox = draw.textbbox((0, 0), line, font=name_font)
+        x = (W - (bbox[2] - bbox[0])) // 2
+        draw.text((x, text_top + i * line_h), line, font=name_font,
+                  fill=(255, 255, 255, 255), stroke_width=3, stroke_fill=(0, 0, 0, 255))
+
+    stars_y = text_top + len(name_lines) * line_h + 24
+    stars_bbox = draw.textbbox((0, 0), stars_text, font=star_font)
+    stars_x = (W - (stars_bbox[2] - stars_bbox[0])) // 2
+    draw.text((stars_x, stars_y), stars_text, font=star_font, fill=(255, 210, 50, 255))
 
     alpha = np.array(frame.split()[3]).astype(float) / 255.0
     rgb = np.array(frame.convert("RGB"))
@@ -233,6 +405,8 @@ def build_video(
     fps: int = 30,
     website_url: str = "",
     music_path: str | None = None,
+    maps_url: str = "",
+    music_offset: float = 0.0,
 ) -> None:
     font_bold = find_font()
     font_reg = find_font_regular()
@@ -241,7 +415,7 @@ def build_video(
         raise ValueError("No photos available to build video")
 
     n = min(len(photo_paths), 5)
-    photos = photo_paths[:n]
+    photos = random.sample(photo_paths, n)
 
     # Each photo's visible duration so total = TOTAL seconds
     # With crossfades: total = n * clip_dur - (n-1) * CROSSFADE
@@ -257,38 +431,37 @@ def build_video(
         clip = clip.with_start(start)
         photo_clips.append(clip)
 
-    # Header overlay
-    header_clips = make_header(business_name, rating, font_bold)
+    # Title card — full-screen intro for the first TITLE_DUR seconds
+    title_clip = (
+        make_title_card(business_name, rating, font_bold, font_reg)
+        .with_duration(TITLE_DUR)
+        .with_effects([vfx.FadeOut(CROSSFADE)])
+        .with_start(0)
+        .with_position("center")
+    )
 
-    # Review cards — one per ~(TOTAL/n_reviews) seconds
+    # Single review card — visible from title fade-out through outro fade-in
     review_clips = []
     if reviews:
-        n_reviews = min(len(reviews), n)
-        review_dur = TOTAL / n_reviews
-        for i, review in enumerate(reviews[:n_reviews]):
-            rgb_arr, alpha_arr = make_review_card(review, font_reg, font_bold)
+        review_start = TITLE_DUR - CROSSFADE
+        review_end = TOTAL - OUTRO_DUR
+        review_dur = review_end - review_start
 
-            # Build clip with alpha mask
-            card_clip = ImageClip(rgb_arr)
-            mask_clip = ImageClip(alpha_arr, is_mask=True)
-            card_clip = card_clip.with_mask(mask_clip)
+        rgb_arr, alpha_arr = make_review_card(reviews[0], font_reg, font_bold)
+        card_clip = ImageClip(rgb_arr)
+        mask_clip = ImageClip(alpha_arr, is_mask=True)
+        card_clip = (
+            card_clip
+            .with_mask(mask_clip)
+            .with_duration(review_dur)
+            .with_effects([vfx.CrossFadeIn(CROSSFADE)])
+            .with_start(review_start)
+            .with_position((CARD_X, CARD_Y_TOP))
+        )
+        review_clips.append(card_clip)
 
-            start = i * review_dur
-            remaining = TOTAL - start
-            dur = min(review_dur, remaining)
-
-            fade_in = min(CROSSFADE, dur / 2)
-            card_clip = (
-                card_clip
-                .with_duration(dur)
-                .with_effects([vfx.CrossFadeIn(fade_in)])
-                .with_start(start)
-                .with_position((0, H - CARD_H - CARD_MARGIN))
-            )
-            review_clips.append(card_clip)
-
-    # Outro card — business name + URL, visible for the last OUTRO_DUR seconds
-    outro_clip = make_outro_card(business_name, website_url, font_bold, font_reg)
+    # Outro card — business name + URL + QR code, visible for the last OUTRO_DUR seconds
+    outro_clip = make_outro_card(business_name, website_url, font_bold, font_reg, maps_url)
     outro_clip = (
         outro_clip
         .with_duration(OUTRO_DUR)
@@ -297,7 +470,7 @@ def build_video(
         .with_position("center")
     )
 
-    all_clips = photo_clips + header_clips + review_clips + [outro_clip]
+    all_clips = photo_clips + review_clips + [title_clip, outro_clip]
     final = (
         CompositeVideoClip(all_clips, size=(W, H))
         .with_duration(TOTAL)
@@ -307,7 +480,7 @@ def build_video(
     if music_path:
         audio = (
             AudioFileClip(music_path)
-            .subclipped(0, TOTAL)
+            .subclipped(music_offset, music_offset + TOTAL)
             .with_effects([afx.AudioFadeIn(FADE), afx.AudioFadeOut(FADE)])
         )
         final = final.with_audio(audio)

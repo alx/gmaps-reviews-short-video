@@ -41,7 +41,12 @@ def search_place_by_name(name: str, client: httpx.Client) -> str:
         json={"textQuery": name},
         headers={"X-Goog-FieldMask": "places.id"},
     )
-    resp.raise_for_status()
+    if not resp.is_success:
+        raise httpx.HTTPStatusError(
+            f"{resp.status_code} {resp.reason_phrase}: {resp.text}",
+            request=resp.request,
+            response=resp,
+        )
     data = resp.json()
     places = data.get("places", [])
     if not places:
@@ -64,7 +69,7 @@ def download_photos(
     photos: list[dict],
     client: httpx.Client,
     tmpdir: str,
-    max_photos: int = 6,
+    max_photos: int = 10,
 ) -> list[str]:
     paths = []
     for i, photo in enumerate(photos[:max_photos]):
@@ -80,12 +85,14 @@ def download_photos(
     return paths
 
 
-def select_best_reviews(reviews: list[dict], count: int = 3) -> list[dict]:
+def select_best_reviews(reviews: list[dict], count: int = 1) -> list[dict]:
+    seen_texts: set[str] = set()
     candidates = []
     for r in reviews:
         text = r.get("text", {}).get("text", "")
         rating = r.get("rating", 0)
-        if rating >= 4 and len(text) >= 60:
+        if rating >= 4 and len(text) >= 60 and text not in seen_texts:
+            seen_texts.add(text)
             candidates.append(
                 {
                     "text": text,
@@ -124,7 +131,7 @@ def resolve_url(url: str, api_key: str, photo_dir: str) -> dict:
         photo_paths = download_photos(raw_photos, client, photo_dir)
 
         raw_reviews = details.get("reviews", [])
-        reviews = select_best_reviews(raw_reviews)
+        reviews = select_best_reviews(raw_reviews, count=5)
 
         return {
             "business_name": business_name,
