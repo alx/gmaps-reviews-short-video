@@ -94,6 +94,8 @@ def main() -> None:
         maps_url = meta.get("maps_url", "")
         website_url = meta.get("website_url", "")
         category = meta.get("category", "")
+        lat = meta.get("lat")
+        lng = meta.get("lng")
 
         title = make_title(business_name, rating, category)
         description = make_description(
@@ -103,7 +105,10 @@ def main() -> None:
 
         print(f"Uploading {mp4.name} …")
         try:
-            yt_url = youtube.upload_video(service, str(mp4), title=title, description=description)
+            yt_url = youtube.upload_video(
+                service, str(mp4), title=title, description=description,
+                lat=lat, lng=lng, location_description=business_name,
+            )
             meta["youtube_url"] = yt_url
             _save_sidecar(mp4, meta)
             print(f"  Published → {yt_url}")

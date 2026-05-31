@@ -407,6 +407,8 @@ def build_video(
     music_path: str | None = None,
     maps_url: str = "",
     music_offset: float = 0.0,
+    lat: float | None = None,
+    lng: float | None = None,
 ) -> None:
     font_bold = find_font()
     font_reg = find_font_regular()
@@ -492,6 +494,10 @@ def build_video(
         "-metadata", f"comment={comment}",
         "-metadata", f"year={datetime.date.today().year}",
     ]
+    if lat is not None and lng is not None:
+        # ISO 6709 annex H format: ±DD.DDDD±DDD.DDDD/
+        location_str = f"{lat:+.6f}{lng:+.6f}/"
+        metadata_params += ["-metadata", f"location={location_str}"]
     final.write_videofile(
         output_path,
         fps=fps,

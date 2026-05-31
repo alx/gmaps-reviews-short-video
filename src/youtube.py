@@ -41,7 +41,15 @@ def authenticate():
     return build("youtube", "v3", credentials=creds)
 
 
-def upload_video(service, video_path: str, title: str, description: str) -> str:
+def upload_video(
+    service,
+    video_path: str,
+    title: str,
+    description: str,
+    lat: float | None = None,
+    lng: float | None = None,
+    location_description: str = "",
+) -> str:
     """Upload video to YouTube and return its URL."""
     body = {
         "snippet": {
@@ -55,6 +63,15 @@ def upload_video(service, video_path: str, title: str, description: str) -> str:
             "selfDeclaredMadeForKids": True,
         },
     }
+    if lat is not None and lng is not None:
+        body["recordingDetails"] = {
+            "locationDescription": location_description,
+            "location": {
+                "latitude": lat,
+                "longitude": lng,
+                "altitude": 0.0,
+            },
+        }
 
     media = MediaFileUpload(video_path, mimetype="video/mp4", resumable=True)
 

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% set active_step = 4 %}
+
+{% block title %}ReviewReel – Preview Video{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h2>Video Preview</h2>
+  <p class="muted" style="margin-bottom:1.25rem">Review the generated video before publishing.</p>
+
+  <div class="video-preview">
+    <video controls playsinline preload="metadata"
+           style="max-width:270px; border-radius:10px; background:#000;">
+      <source src="{{ video_url }}" type="video/mp4">
+      Your browser does not support the video tag.
+    </video>
+
+    <div class="metadata-box">
+      <p class="section-title">YouTube metadata</p>
+
+      <div class="form-group" style="margin-bottom:0.75rem">
+        <label>Title</label>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:0.55rem 0.75rem;font-size:0.9rem;">
+          {{ title or '(not set)' }}
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:0.75rem">
+        <label>JSON Sidecar</label>
+        <pre>{{ metadata_json }}</pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="actions">
+  <a href="/step3" class="btn btn-outline">← Regenerate</a>
+  <a href="/step5" class="btn btn-primary">Looks Good → Publish</a>
+  <a href="{{ video_url }}" download class="btn btn-outline">⬇ Download MP4</a>
+</div>
+{% endblock %}

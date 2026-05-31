@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% set active_step = 5 %}
+
+{% block title %}ReviewReel – Publishing{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h2>Publishing to YouTube…</h2>
+  <p class="muted" style="margin-bottom:1.5rem">
+    Uploading the video. This may take a minute depending on file size and connection speed.
+  </p>
+
+  {% include "partials/progress.html" %}
+
+  <div class="actions">
+    <a href="/step5" class="btn btn-outline">Check Status</a>
+  </div>
+</div>
+{% endblock %}

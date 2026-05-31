@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% set active_step = 3 %}
+
+{% block title %}ReviewReel – Video Parameters{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h2>Video Parameters</h2>
+  <p class="muted" style="margin-bottom:1rem">Configure the output video for <strong>{{ business_name }}</strong>.</p>
+</div>
+
+<form method="POST" action="/step3/submit" enctype="multipart/form-data">
+
+  <div class="card">
+    <h3>Background Music</h3>
+
+    {% if preset_music %}
+    <div class="form-group">
+      <label for="preset_music">Use a preset track</label>
+      <select name="preset_music" id="preset_music">
+        <option value="">— No music —</option>
+        {% for name in preset_music %}
+        <option value="{{ name }}">{{ name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+
+    <div class="form-group">
+      <label for="music_file">Or upload a file (MP3/WAV, max 50 MB)</label>
+      <input type="file" name="music_file" id="music_file" accept="audio/mpeg,audio/wav,audio/*">
+      <p class="muted" style="margin-top:0.3rem">Uploaded file takes priority over preset selection.</p>
+    </div>
+
+    <div class="form-group">
+      <label for="music_copyright">Music copyright notice (optional)</label>
+      <input type="text" name="music_copyright" id="music_copyright"
+             placeholder="e.g. Samba Latin Carnaval by Ashot Danielyan – Free Music Archive">
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>YouTube Metadata</h3>
+
+    <div class="form-group">
+      <label for="title">Video title</label>
+      <input type="text" name="title" id="title" value="{{ suggested_title }}" maxlength="100" required>
+    </div>
+
+    <div class="form-group">
+      <label for="description">Description</label>
+      <textarea name="description" id="description" rows="8">{{ suggested_description }}</textarea>
+    </div>
+  </div>
+
+  <div class="actions">
+    <a href="/step2" class="btn btn-outline">← Back</a>
+    <button type="submit" class="btn btn-primary">Generate Video →</button>
+  </div>
+
+</form>
+{% endblock %}

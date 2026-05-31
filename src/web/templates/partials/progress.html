@@ -1,0 +1,31 @@
+<div id="progress-poller"
+     hx-get="/tasks/{{ task_id }}/status"
+     hx-trigger="every 1s"
+     hx-swap="none"
+     hx-on::after-request="handleProgress(event)">
+</div>
+
+<div class="progress-wrap">
+  <div class="progress-bar-outer">
+    <div class="progress-bar-inner" id="prog-bar" style="width: 0%"></div>
+  </div>
+  <p class="progress-label" id="prog-label">Starting…</p>
+</div>
+
+<script>
+function handleProgress(evt) {
+  let data;
+  try { data = JSON.parse(evt.detail.xhr.responseText); } catch { return; }
+  const pct = data.pct || 0;
+  document.getElementById('prog-bar').style.width = pct + '%';
+  document.getElementById('prog-label').textContent = data.progress || data.status || '';
+  if (data.status === 'error') {
+    document.getElementById('prog-label').textContent = 'Error: ' + (data.error || 'unknown');
+    document.getElementById('prog-label').style.color = '#e05252';
+    document.getElementById('progress-poller').removeAttribute('hx-trigger');
+  }
+  if (data.redirect_url) {
+    window.location.href = data.redirect_url;
+  }
+}
+</script>

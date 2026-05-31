@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% set active_step = 2 %}
+
+{% block title %}ReviewReel – Select Review & Photos{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h2>{{ business_name }}</h2>
+  <p class="muted">
+    ⭐ {{ rating }} &nbsp;·&nbsp; {{ review_count }} reviews
+  </p>
+</div>
+
+<form method="POST" action="/step2/submit" id="select-form">
+
+  <!-- Reviews -->
+  <div class="card">
+    <h3>Select a Review</h3>
+    <div class="review-list">
+      {% for review in reviews %}
+      <label class="review-card">
+        <input type="radio" name="review_idx" value="{{ loop.index0 }}" {% if loop.first %}checked{% endif %}>
+        <div class="review-header">
+          <span class="stars">{{ '★' * review.rating }}{{ '☆' * (5 - review.rating) }}</span>
+          <span class="author">{{ review.author }}</span>
+        </div>
+        <p class="review-text">{{ review.text }}</p>
+      </label>
+      {% else %}
+      <p class="muted">No suitable reviews found (need rating ≥ 4 and at least 60 characters).</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Photos -->
+  {% if thumb_urls %}
+  <div class="card">
+    <h3>Choose & Order Photos</h3>
+    <p class="muted" style="margin-bottom:0.75rem">
+      Drag to reorder. Uncheck to exclude. First 5 selected photos will be used in the slideshow.
+    </p>
+    <div class="photo-grid" id="photo-grid">
+      {% for url in thumb_urls %}
+      <div class="photo-item" data-idx="{{ loop.index0 }}">
+        <span class="photo-num">{{ loop.index }}</span>
+        <img src="{{ url }}" alt="Photo {{ loop.index }}" loading="lazy">
+        <span class="photo-check">
+          <input type="checkbox" name="selected_photos" value="{{ loop.index0 }}" checked title="Include photo {{ loop.index }}">
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    <!-- Hidden inputs for photo order — updated by Sortable -->
+    <div id="photo-order-inputs">
+      {% for url in thumb_urls %}
+      <input type="hidden" name="photo_order" value="{{ loop.index0 }}">
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="actions">
+    <a href="/" class="btn btn-outline">← Start Over</a>
+    <button type="submit" class="btn btn-primary">Next: Video Parameters →</button>
+  </div>
+
+</form>
+
+<script>
+(function () {
+  const grid = document.getElementById('photo-grid');
+  if (!grid) return;
+
+  const sortable = new Sortable(grid, {
+    animation: 150,
+    ghostClass: 'sortable-ghost',
+    chosenClass: 'sortable-chosen',
+    onEnd: updateOrder,
+  });
+
+  function updateOrder() {
+    const container = document.getElementById('photo-order-inputs');
+    container.innerHTML = '';
+    grid.querySelectorAll('.photo-item').forEach(function(item) {
+      const idx = item.dataset.idx;
+      const checked = item.querySelector('input[type="checkbox"]').checked;
+      if (checked) {
+        const inp = document.createElement('input');
+        inp.type = 'hidden';
+        inp.name = 'photo_order';
+        inp.value = idx;
+        container.appendChild(inp);
+      }
+    });
+  }
+
+  // Also update when a checkbox changes
+  grid.addEventListener('change', updateOrder);
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}ReviewReel{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <script src="{{ url_for('static', filename='js/htmx.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/sortable.min.js') }}"></script>
+</head>
+<body>
+  <header>
+    <h1>ReviewReel</h1>
+    <ul class="steps">
+      <li class="{{ 'active' if active_step == 1 else ('done' if active_step and active_step > 1 else '') }}">1 URL</li>
+      <li class="{{ 'active' if active_step == 2 else ('done' if active_step and active_step > 2 else '') }}">2 Select</li>
+      <li class="{{ 'active' if active_step == 3 else ('done' if active_step and active_step > 3 else '') }}">3 Params</li>
+      <li class="{{ 'active' if active_step == 4 else ('done' if active_step and active_step > 4 else '') }}">4 Preview</li>
+      <li class="{{ 'active' if active_step == 5 else '' }}">5 Publish</li>
+    </ul>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
