@@ -4,6 +4,25 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}ReviewReel{% endblock %}</title>
+
+  <!-- OpenGraph -->
+  <meta property="og:type"        content="website">
+  <meta property="og:site_name"   content="ReviewReel">
+  <meta property="og:title"       content="{% block og_title %}ReviewReel – Generate Short Videos from Google Maps{% endblock %}">
+  <meta property="og:description" content="{% block og_description %}Turn any Google Maps business into a polished short video — ready to publish on YouTube Shorts, Instagram Reels, or TikTok in minutes.{% endblock %}">
+  <meta property="og:image"       content="{% block og_image %}https://reviewreel.alexgirard.com/static/img/og-preview.png{% endblock %}">
+  <meta property="og:url"         content="{% block og_url %}https://reviewreel.alexgirard.com/{% endblock %}">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card"        content="summary_large_image">
+  <meta name="twitter:title"       content="{{ self.og_title() }}">
+  <meta name="twitter:description" content="{{ self.og_description() }}">
+  <meta name="twitter:image"       content="{{ self.og_image() }}">
+
+  <!-- Canonical / description -->
+  <meta name="description" content="{{ self.og_description() }}">
+  <link rel="canonical" href="{{ self.og_url() }}">
+
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   <script src="{{ url_for('static', filename='js/htmx.min.js') }}"></script>
   <script src="{{ url_for('static', filename='js/sortable.min.js') }}"></script>
