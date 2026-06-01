@@ -44,4 +44,4 @@ def create_app(config: dict | None = None) -> Flask:
 
 def run_dev() -> None:
     app = create_app()
-    app.run(debug=True, host="127.0.0.1", port=5000, threaded=True)
+    app.run(debug=True, host="127.0.0.1", port=5005, threaded=True)
