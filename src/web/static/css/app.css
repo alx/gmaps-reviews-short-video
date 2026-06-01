@@ -65,7 +65,7 @@ main { max-width: 860px; margin: 0 auto; padding: 0 1.5rem 4rem; }
   transition: background 0.15s, opacity 0.15s;
 }
 .yt-channel-btn:hover { background: #cc0000; color: #fff; text-decoration: none; }
-.yt-channel-btn svg { width: 1.1rem; height: 1.1rem; flex-shrink: 0; }
+.yt-channel-btn svg { flex-shrink: 0; }
 
 .intro-examples { margin-top: 2rem; }
 .intro-examples-label {
