@@ -50,3 +50,29 @@ def create_app(config: dict | None = None) -> Flask:
 def run_dev() -> None:
     app = create_app()
     app.run(debug=True, host="127.0.0.1", port=5005, threaded=True)
+
+
+def run_prod() -> None:
+    from gunicorn.app.base import BaseApplication
+
+    class _App(BaseApplication):
+        def __init__(self, application, options):
+            self.options = options
+            self.application = application
+            super().__init__()
+
+        def load_config(self):
+            for key, value in self.options.items():
+                self.cfg.set(key, value)
+
+        def load(self):
+            return self.application
+
+    options = {
+        "bind": "127.0.0.1:5005",
+        "workers": 1,
+        "worker_class": "gthread",
+        "threads": 4,
+        "loglevel": "info",
+    }
+    _App(create_app(), options).run()

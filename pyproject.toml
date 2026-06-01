@@ -14,12 +14,13 @@ dependencies = [
     "staticmap>=0.5",
     "flask>=3.0",
     "werkzeug>=3.0",
+    "gunicorn>=23.0",
 ]
 
 [project.scripts]
 gmaps-reviews-short-video = "src.main:main"
 gmaps-publish = "src.publish:main"
-gmaps-web = "src.web.app:run_dev"
+gmaps-web = "src.web.app:run_prod"
 gmaps-geojson-to-youtube = "src.geojson_to_youtube:main"
 
 [tool.hatch.build.targets.wheel]
