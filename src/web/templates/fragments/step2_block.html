@@ -1,0 +1,156 @@
+<section id="step2-block" class="wizard-block">
+  <div class="card">
+    <div class="block-label">✂️ Step 2 — Select &amp; Arrange</div>
+    <h2>{{ business_name }}</h2>
+    <p class="muted">⭐ {{ rating }} &nbsp;·&nbsp; {{ review_count }} reviews</p>
+  </div>
+
+  <form id="select-form"
+        hx-post="/step2/submit"
+        hx-target="#wizard-blocks"
+        hx-swap="beforeend"
+        hx-encoding="multipart/form-data"
+        hx-indicator="#generate-btn">
+    <input type="hidden" name="fetch_task_id" value="{{ fetch_task_id }}">
+
+    <!-- Reviews -->
+    <div class="card">
+      <h3>Select a Review</h3>
+      <div class="review-list">
+        {% for review in reviews %}
+        <label class="review-card">
+          <input type="radio" name="review_idx" value="{{ loop.index0 }}" {% if loop.first %}checked{% endif %}>
+          <div class="review-header">
+            <span class="stars">{{ '★' * review.rating }}{{ '☆' * (5 - review.rating) }}</span>
+            <span class="author">{{ review.author }}</span>
+          </div>
+          <p class="review-text">{{ review.text }}</p>
+        </label>
+        {% else %}
+        <p class="muted">No suitable reviews found (need rating ≥ 4 and at least 60 characters).</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Photos -->
+    {% if thumb_urls %}
+    <div class="card">
+      <h3>Choose &amp; Order Photos</h3>
+      <p class="muted" style="margin-bottom:0.75rem">
+        Drag to reorder. Uncheck to exclude. First 5 selected photos will be used in the slideshow.
+      </p>
+      <div class="photo-grid" id="photo-grid">
+        {% for url in thumb_urls %}
+        <div class="photo-item" data-idx="{{ loop.index0 }}">
+          <span class="photo-num">{{ loop.index }}</span>
+          <img src="{{ url }}" alt="Photo {{ loop.index }}" loading="lazy">
+          <span class="photo-check">
+            <input type="checkbox" name="selected_photos" value="{{ loop.index0 }}" checked title="Include photo {{ loop.index }}">
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      <div id="photo-order-inputs">
+        {% for url in thumb_urls %}
+        <input type="hidden" name="photo_order" value="{{ loop.index0 }}">
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Music -->
+    <div class="card">
+      <h3>Background Music</h3>
+      {% if preset_music %}
+      <div class="form-group">
+        <label for="preset-music">Preset track</label>
+        <select name="preset_music" id="preset-music" onchange="loadMusicLicense(this.value)">
+          <option value="">— No music —</option>
+          {% for name in preset_music %}
+          <option value="{{ name }}">{{ name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      <div class="form-group">
+        <label for="music-file">Or upload a file (MP3/WAV, max 50 MB)</label>
+        <input type="file" name="music_file" id="music-file" accept="audio/mpeg,audio/wav,audio/*"
+               onchange="if(this.value) document.getElementById('preset-music').value=''">
+        <p class="muted" style="margin-top:0.3rem">Uploaded file takes priority over preset selection.</p>
+      </div>
+      <div class="form-group">
+        <label for="music-copyright">Music license / attribution</label>
+        <input type="text" name="music_copyright" id="music-copyright"
+               placeholder="Auto-filled when selecting a preset track">
+        <p class="muted" style="margin-top:0.3rem; font-size:0.8rem">
+          Appended to the video description as 🎵 attribution.
+        </p>
+      </div>
+    </div>
+
+    <!-- YouTube metadata -->
+    <div class="card">
+      <h3>YouTube Metadata</h3>
+      <div class="form-group">
+        <label for="title">Video title</label>
+        <input type="text" name="title" id="title" value="{{ suggested_title }}" maxlength="100" required>
+      </div>
+      <div class="form-group">
+        <label for="description">Description</label>
+        <textarea name="description" id="description" rows="8">{{ suggested_description }}</textarea>
+      </div>
+    </div>
+
+    <div class="actions">
+      <a href="/" class="btn btn-outline">← Start Over</a>
+      <button id="generate-btn" type="submit" class="btn btn-primary">
+        <span class="htmx-indicator spinner"></span>
+        Generate Video →
+      </button>
+    </div>
+
+  </form>
+</section>
+
+<script>
+(function () {
+  const grid = document.getElementById('photo-grid');
+  if (!grid) return;
+  new Sortable(grid, {
+    animation: 150,
+    ghostClass: 'sortable-ghost',
+    chosenClass: 'sortable-chosen',
+    onEnd: updateOrder,
+  });
+  function updateOrder() {
+    const container = document.getElementById('photo-order-inputs');
+    container.innerHTML = '';
+    grid.querySelectorAll('.photo-item').forEach(function(item) {
+      const idx = item.dataset.idx;
+      const checked = item.querySelector('input[type="checkbox"]').checked;
+      if (checked) {
+        const inp = document.createElement('input');
+        inp.type = 'hidden';
+        inp.name = 'photo_order';
+        inp.value = idx;
+        container.appendChild(inp);
+      }
+    });
+  }
+  grid.addEventListener('change', updateOrder);
+})();
+
+function loadMusicLicense(filename) {
+  if (!filename) {
+    document.getElementById('music-copyright').value = '';
+    return;
+  }
+  const stem = filename.replace(/\.[^.]+$/, '');
+  fetch('/api/mp3-license/' + encodeURIComponent(stem))
+    .then(r => r.json())
+    .then(data => {
+      if (data.text) document.getElementById('music-copyright').value = data.text;
+    })
+    .catch(() => {});
+}
+</script>

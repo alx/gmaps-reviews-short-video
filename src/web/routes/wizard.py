@@ -35,8 +35,37 @@ def _session_dir(task_id: str) -> str:
     return str(d)
 
 
+def _parse_cert_field(content: str, label: str) -> str:
+    lines = content.splitlines()
+    for i, line in enumerate(lines):
+        if line.strip() == label and i + 1 < len(lines):
+            return lines[i + 1].strip()
+    return ""
+
+
+def _extract_license_text(txt_content: str) -> str:
+    if "PIXABAY LICENSE CERTIFICATE" in txt_content:
+        title = _parse_cert_field(txt_content, "Audio File Title:")
+        author_url = _parse_cert_field(txt_content, "Licensor's Username:")
+        source_url = _parse_cert_field(txt_content, "Audio File URL:")
+        import re
+        slug = author_url.rstrip("/").split("/")[-1] if author_url else ""
+        author = re.sub(r"-\d+$", "", slug)  # strip Pixabay numeric user ID suffix
+        parts = []
+        if title:
+            parts.append(f'"{title}"')
+        if author:
+            parts.append(f"by {author}")
+        parts.append("Pixabay License")
+        credit = " ".join(parts)
+        if source_url:
+            credit += f" – {source_url}"
+        return credit
+    return txt_content.strip()
+
+
 # ---------------------------------------------------------------------------
-# Step 1 – URL input
+# Main page (Step 1 – URL input)
 # ---------------------------------------------------------------------------
 
 @wizard.get("/")
@@ -52,7 +81,6 @@ def step1_submit():
     if not maps_url:
         return render_template("step1_url.html", error="Please enter a Google Maps URL.")
 
-    # Create task first to get its ID, then derive session dir from it
     task = task_mod.store.create()
     real_dir = _session_dir(task.task_id)
     t = threading.Thread(
@@ -64,19 +92,16 @@ def step1_submit():
 
     session["fetch_task_id"] = task.task_id
     session["maps_url"] = maps_url
-    return redirect(url_for("wizard.step1_wait"))
-
-
-@wizard.get("/step1/wait")
-def step1_wait():
-    task_id = session.get("fetch_task_id")
-    if not task_id:
-        return redirect(url_for("wizard.step1"))
-    return render_template("step1_wait.html", task_id=task_id)
+    return render_template(
+        "fragments/loading_fetch.html",
+        task_id=task.task_id,
+        pct=0,
+        progress="Starting…",
+    )
 
 
 # ---------------------------------------------------------------------------
-# Task polling / SSE
+# Task polling / SSE (kept for backward compat)
 # ---------------------------------------------------------------------------
 
 @wizard.get("/tasks/<task_id>/status")
@@ -91,14 +116,13 @@ def task_status(task_id: str):
         "error": task.error,
     }
     if task.status == TaskStatus.DONE:
-        # Decide where to redirect based on what kind of task this is
         result = task.result or {}
         if "video_path" in result:
-            payload["redirect_url"] = url_for("wizard.step4")
+            payload["redirect_url"] = url_for("wizard.step1")
         elif "youtube_url" in result:
-            payload["redirect_url"] = url_for("wizard.step5")
+            payload["redirect_url"] = url_for("wizard.step1")
         else:
-            payload["redirect_url"] = url_for("wizard.step2")
+            payload["redirect_url"] = url_for("wizard.step1")
     return payload
 
 
@@ -132,62 +156,39 @@ def task_stream(task_id: str):
 
 
 # ---------------------------------------------------------------------------
-# Step 2 – Select review + photos
+# HTMX poll endpoints – return HTML fragments
 # ---------------------------------------------------------------------------
 
-@wizard.get("/step2")
-def step2():
-    task_id = session.get("fetch_task_id")
-    if not task_id:
-        return redirect(url_for("wizard.step1"))
+@wizard.get("/tasks/<task_id>/poll/fetch")
+def poll_fetch(task_id: str):
     task = task_mod.store.get(task_id)
-    if not task or task.status != TaskStatus.DONE:
-        return redirect(url_for("wizard.step1_wait"))
+    if not task:
+        return render_template(
+            "fragments/loading_fetch.html",
+            task_id=task_id, pct=0,
+            progress="Error: task not found", error=True,
+        )
+    if task.status == TaskStatus.ERROR:
+        return render_template(
+            "fragments/loading_fetch.html",
+            task_id=task_id, pct=0,
+            progress=f"Error: {task.error}", error=True,
+        )
+    if task.status != TaskStatus.DONE:
+        return render_template(
+            "fragments/loading_fetch.html",
+            task_id=task_id,
+            pct=task.progress_pct or 0,
+            progress=task.progress or "…",
+        )
 
     result = task.result
-    reviews = result.get("reviews", [])
-    thumb_paths = result.get("thumbnail_paths", [])
-
-    # Build media-relative paths for templates
     workspace = _workspace()
     thumb_urls = []
-    for p in thumb_paths:
+    for p in result.get("thumbnail_paths", []):
         rel = os.path.relpath(p, workspace)
         thumb_urls.append(url_for("media.serve_media", filename=rel))
 
-    return render_template(
-        "step2_select.html",
-        business_name=result.get("business_name", ""),
-        rating=result.get("rating", 0),
-        review_count=result.get("review_count", 0),
-        reviews=reviews,
-        thumb_urls=thumb_urls,
-    )
-
-
-@wizard.post("/step2/submit")
-def step2_submit():
-    review_idx = int(request.form.get("review_idx", 0))
-    photo_order = request.form.getlist("photo_order")
-    session["selected_review_idx"] = review_idx
-    session["photo_order"] = photo_order
-    return redirect(url_for("wizard.step3"))
-
-
-# ---------------------------------------------------------------------------
-# Step 3 – Video parameters
-# ---------------------------------------------------------------------------
-
-@wizard.get("/step3")
-def step3():
-    task_id = session.get("fetch_task_id")
-    if not task_id:
-        return redirect(url_for("wizard.step1"))
-    task = task_mod.store.get(task_id)
-    if not task or task.status != TaskStatus.DONE:
-        return redirect(url_for("wizard.step1_wait"))
-
-    result = task.result
     from ...main import make_title, make_description
 
     suggested_title = make_title(result["business_name"], result["rating"])
@@ -198,26 +199,101 @@ def step3():
         result.get("website_url", ""),
     )
 
-    # List preset music files from mp3/ directory
     mp3_dir = Path(current_app.config.get("PROJECT_ROOT", "")) / "mp3"
-    preset_music = sorted(mp3_dir.glob("*.mp3")) if mp3_dir.exists() else []
+    preset_music = sorted(p.name for p in mp3_dir.glob("*.mp3")) if mp3_dir.exists() else []
 
     return render_template(
-        "step3_params.html",
+        "fragments/step2_block.html",
+        fetch_task_id=task_id,
         business_name=result["business_name"],
+        rating=result["rating"],
+        review_count=result.get("review_count", 0),
+        reviews=result.get("reviews", []),
+        thumb_urls=thumb_urls,
+        preset_music=preset_music,
         suggested_title=suggested_title,
         suggested_description=suggested_description,
-        preset_music=[p.name for p in preset_music],
     )
 
 
-@wizard.post("/step3/submit")
-def step3_submit():
+@wizard.get("/tasks/<task_id>/poll/generate")
+def poll_generate(task_id: str):
+    task = task_mod.store.get(task_id)
+    if not task:
+        return render_template(
+            "fragments/loading_generate.html",
+            task_id=task_id, pct=0,
+            progress="Error: task not found", error=True,
+        )
+    if task.status == TaskStatus.ERROR:
+        return render_template(
+            "fragments/loading_generate.html",
+            task_id=task_id, pct=0,
+            progress=f"Error: {task.error}", error=True,
+        )
+    if task.status != TaskStatus.DONE:
+        return render_template(
+            "fragments/loading_generate.html",
+            task_id=task_id,
+            pct=task.progress_pct or 0,
+            progress=task.progress or "…",
+        )
+
+    result = task.result
+    workspace = _workspace()
+    video_rel = os.path.relpath(result["video_path"], workspace)
+    video_url = url_for("media.serve_media", filename=video_rel)
+
+    from ..routes.youtube_oauth import get_or_refresh_credentials
+    creds = get_or_refresh_credentials()
+
+    return render_template(
+        "fragments/step3_block.html",
+        video_url=video_url,
+        title=session.get("title_override", ""),
+        yt_authed=creds is not None,
+    )
+
+
+@wizard.get("/tasks/<task_id>/poll/publish")
+def poll_publish(task_id: str):
+    task = task_mod.store.get(task_id)
+    if not task:
+        return render_template("fragments/publish_result.html", error="Task not found.")
+    if task.status == TaskStatus.ERROR:
+        return render_template("fragments/publish_result.html", error=task.error)
+    if task.status != TaskStatus.DONE:
+        return render_template(
+            "fragments/publish_loading.html",
+            task_id=task_id,
+            pct=task.progress_pct or 0,
+            progress=task.progress or "Uploading…",
+        )
+    return render_template(
+        "fragments/publish_result.html",
+        youtube_url=task.result.get("youtube_url"),
+        error=None,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Step 2 – merged select + arrange + music + params (HTMX)
+# ---------------------------------------------------------------------------
+
+@wizard.post("/step2/submit")
+def step2_submit():
+    review_idx = int(request.form.get("review_idx", 0))
+    photo_order = request.form.getlist("photo_order")
+    music_copyright = request.form.get("music_copyright", "").strip()
     title = request.form.get("title", "").strip()
     description = request.form.get("description", "").strip()
-    music_copyright = request.form.get("music_copyright", "").strip()
 
-    # Handle music: uploaded file takes priority over preset selection
+    session["selected_review_idx"] = review_idx
+    session["photo_order"] = photo_order
+    session["music_copyright"] = music_copyright
+    session["title_override"] = title
+    session["description_override"] = description
+
     music_path: str | None = None
     music_file = request.files.get("music_file")
     if music_file and music_file.filename:
@@ -236,24 +312,20 @@ def step3_submit():
                 music_path = str(candidate)
 
     session["music_path"] = music_path
-    session["music_copyright"] = music_copyright
-    session["title_override"] = title
-    session["description_override"] = description
 
-    # Look up place data from the fetch task
-    fetch_task_id = session.get("fetch_task_id")
+    # Use hidden form field first (survives session loss), fall back to session cookie
+    fetch_task_id = request.form.get("fetch_task_id") or session.get("fetch_task_id")
     fetch_task = task_mod.store.get(fetch_task_id) if fetch_task_id else None
     if not fetch_task or fetch_task.status != TaskStatus.DONE:
-        return redirect(url_for("wizard.step1"))
+        return render_template("fragments/error_block.html",
+                               message="Session expired or place data lost. Please start over."), 200
 
     result = fetch_task.result
-    review_idx = session.get("selected_review_idx", 0)
     reviews = result.get("reviews", [])
     selected_review = reviews[review_idx] if reviews and review_idx < len(reviews) else {}
 
-    photo_order_raw = session.get("photo_order", [])
     try:
-        photo_indices = [int(x) for x in photo_order_raw]
+        photo_indices = [int(x) for x in photo_order]
     except (ValueError, TypeError):
         photo_indices = list(range(min(5, len(result.get("raw_photos", [])))))
 
@@ -269,92 +341,49 @@ def step3_submit():
         session.get("maps_url", ""),
     )
     session["generate_task_id"] = gen_task.task_id
-    return redirect(url_for("wizard.step4_wait"))
-
-
-# ---------------------------------------------------------------------------
-# Step 4 – Video preview
-# ---------------------------------------------------------------------------
-
-@wizard.get("/step4/wait")
-def step4_wait():
-    task_id = session.get("generate_task_id")
-    if not task_id:
-        return redirect(url_for("wizard.step3"))
-    return render_template("step4_wait.html", task_id=task_id)
-
-
-@wizard.get("/step4")
-def step4():
-    task_id = session.get("generate_task_id")
-    if not task_id:
-        return redirect(url_for("wizard.step3"))
-    task = task_mod.store.get(task_id)
-    if not task or task.status != TaskStatus.DONE:
-        return redirect(url_for("wizard.step4_wait"))
-
-    result = task.result
-    workspace = _workspace()
-    video_rel = os.path.relpath(result["video_path"], workspace)
-    video_url = url_for("media.serve_media", filename=video_rel)
-    metadata_json = json.dumps(result.get("metadata", {}), indent=2, ensure_ascii=False)
-
     return render_template(
-        "step4_preview.html",
-        video_url=video_url,
-        metadata_json=metadata_json,
-        title=session.get("title_override", ""),
-        description=session.get("description_override", ""),
+        "fragments/loading_generate.html",
+        task_id=gen_task.task_id,
+        pct=0,
+        progress="Starting…",
     )
 
 
 # ---------------------------------------------------------------------------
-# Step 5 – Publish
+# API – music license text
 # ---------------------------------------------------------------------------
 
-@wizard.get("/step5")
-def step5():
-    from ..routes.youtube_oauth import get_or_refresh_credentials
+@wizard.get("/api/mp3-license/<stem>")
+def mp3_license(stem: str):
+    if "/" in stem or "\\" in stem or ".." in stem:
+        return {"text": ""}, 400
+    mp3_dir = Path(current_app.config.get("PROJECT_ROOT", "")) / "mp3"
+    txt_path = mp3_dir / f"{Path(stem).stem}.txt"
+    if not txt_path.exists():
+        return {"text": ""}
+    content = txt_path.read_text(encoding="utf-8")
+    return {"text": _extract_license_text(content)}
 
-    creds = get_or_refresh_credentials()
-    youtube_url = session.pop("youtube_url", None)
 
-    publish_task_id = session.get("publish_task_id")
-    publish_error = None
-    if publish_task_id:
-        pub_task = task_mod.store.get(publish_task_id)
-        if pub_task and pub_task.status == TaskStatus.DONE:
-            youtube_url = pub_task.result.get("youtube_url")
-            session["youtube_url"] = youtube_url
-        elif pub_task and pub_task.status == TaskStatus.ERROR:
-            publish_error = pub_task.error
-
-    return render_template(
-        "step5_publish.html",
-        yt_authed=creds is not None,
-        youtube_url=youtube_url,
-        publish_error=publish_error,
-        publish_task_id=publish_task_id,
-        title=session.get("title_override", ""),
-        description=session.get("description_override", ""),
-    )
-
+# ---------------------------------------------------------------------------
+# Publish (HTMX)
+# ---------------------------------------------------------------------------
 
 @wizard.post("/step5/publish")
 def step5_publish():
     gen_task_id = session.get("generate_task_id")
     if not gen_task_id:
-        return redirect(url_for("wizard.step4"))
+        return render_template("fragments/publish_result.html", error="No video generated. Start over.")
     gen_task = task_mod.store.get(gen_task_id)
     if not gen_task or gen_task.status != TaskStatus.DONE:
-        return redirect(url_for("wizard.step4"))
+        return render_template("fragments/publish_result.html", error="Video not ready.")
 
     result = gen_task.result
     title = session.get("title_override", "")
     description = session.get("description_override", "")
     music_copyright = session.get("music_copyright", "")
     if music_copyright:
-        description += f"\n\n🎵 {music_copyright}"
+        description += f"\n\n\U0001f3b5 {music_copyright}"
 
     pub_task = task_mod.run_in_thread(
         task_mod._publish_task,
@@ -364,12 +393,33 @@ def step5_publish():
         result["metadata_path"],
     )
     session["publish_task_id"] = pub_task.task_id
-    return redirect(url_for("wizard.step5_wait"))
+    return render_template(
+        "fragments/publish_loading.html",
+        task_id=pub_task.task_id,
+        pct=0,
+        progress="Uploading to YouTube…",
+    )
 
 
-@wizard.get("/step5/wait")
-def step5_wait():
-    task_id = session.get("publish_task_id")
-    if not task_id:
-        return redirect(url_for("wizard.step5"))
-    return render_template("step5_wait.html", task_id=task_id)
+# ---------------------------------------------------------------------------
+# Legacy redirects
+# ---------------------------------------------------------------------------
+
+@wizard.get("/step2")
+def step2():
+    return redirect(url_for("wizard.step1"))
+
+
+@wizard.get("/step3")
+def step3():
+    return redirect(url_for("wizard.step1"))
+
+
+@wizard.get("/step4")
+def step4():
+    return redirect(url_for("wizard.step1"))
+
+
+@wizard.get("/step5")
+def step5():
+    return redirect(url_for("wizard.step1"))

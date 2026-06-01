@@ -304,3 +304,119 @@ hr { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
   .ps-arrow { width: 2px; height: 1rem; align-self: center; margin-top: 0; }
   .ps-arrow::after { right: -3px; top: auto; bottom: -4px; border-left-color: transparent; border-top-color: var(--border); }
 }
+
+/* ── Step roadmap ───────────────────────── */
+.step-roadmap {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-bottom: 1.5rem;
+}
+.step-roadmap-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  transition: border-color 0.2s, background 0.2s;
+}
+.step-roadmap-active {
+  border-color: var(--accent);
+  background: rgba(79,142,247,0.06);
+}
+.step-roadmap-pending {
+  opacity: 0.45;
+}
+.srm-connector {
+  width: 2px;
+  height: 1rem;
+  background: var(--border);
+  margin-left: 1.85rem;
+}
+.srm-icon {
+  font-size: 1.3rem;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+.srm-body strong {
+  display: block;
+  font-size: 0.9rem;
+  margin-bottom: 0.2rem;
+}
+.srm-body p {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin: 0;
+}
+
+/* ── Wizard blocks ───────────────────────── */
+#wizard-blocks { margin-top: 0; }
+
+.wizard-block {
+  position: relative;
+  padding-top: 1.5rem;
+}
+.wizard-block::before {
+  content: '';
+  display: block;
+  width: 2px;
+  height: 1.5rem;
+  background: var(--border);
+  margin: 0 auto 0;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.block-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  color: var(--accent);
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+
+.loading-card { border-style: dashed; }
+
+.progress-bar-error { background: var(--danger) !important; }
+.progress-label-error { color: var(--danger) !important; }
+
+/* ── Ghost / upcoming blocks ─────────────── */
+.ghost-block {
+  pointer-events: none;
+  user-select: none;
+}
+.ghost-card {
+  opacity: 0.28;
+  border-style: dashed;
+}
+.ghost-hint {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+.ghost-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.ghost-row {
+  height: 10px;
+  border-radius: 6px;
+  background: var(--border);
+}
+.ghost-wide  { width: 85%; }
+.ghost-medium { width: 60%; }
+.ghost-short  { width: 40%; }
+
+/* ── HTMX loading indicator on buttons ───── */
+/* HTMX loading indicator on buttons */
+.htmx-indicator { display: none; }
+.htmx-request .htmx-indicator { display: inline-block; }
+.htmx-request[id="fetch-btn"] { opacity: 0.7; pointer-events: none; }
+button.htmx-request { opacity: 0.7; pointer-events: none; }

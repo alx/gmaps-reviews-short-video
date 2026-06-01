@@ -1,20 +1,49 @@
 {% extends "base.html" %}
 {% set active_step = 1 %}
 
-{% block title %}ReviewReel – Enter URL{% endblock %}
+{% block title %}ReviewReel – Generate Short Videos from Google Maps{% endblock %}
 
 {% block content %}
+
+<!-- Step roadmap -->
+<div class="step-roadmap">
+  <div class="step-roadmap-item step-roadmap-active">
+    <div class="srm-icon">🔗</div>
+    <div class="srm-body">
+      <strong>Step 1 — Paste a URL</strong>
+      <p>Drop in any Google Maps business link. ReviewReel fetches name, rating, reviews, and up to 10 photos.</p>
+    </div>
+  </div>
+  <div class="srm-connector"></div>
+  <div class="step-roadmap-item step-roadmap-pending">
+    <div class="srm-icon">✂️</div>
+    <div class="srm-body">
+      <strong>Step 2 — Select &amp; Arrange</strong>
+      <p>Pick the best review, drag-reorder photos, choose background music. Tweak the YouTube title &amp; description.</p>
+    </div>
+  </div>
+  <div class="srm-connector"></div>
+  <div class="step-roadmap-item step-roadmap-pending">
+    <div class="srm-icon">🚀</div>
+    <div class="srm-body">
+      <strong>Step 3 — Publish</strong>
+      <p>Preview the 12-second 9:16 MP4 and publish straight to YouTube Shorts with one click.</p>
+    </div>
+  </div>
+</div>
+
+<!-- URL form -->
 <div class="card card-hero">
   <h2>Generate a Short Video from Google Maps</h2>
-  <p class="muted" style="margin-bottom:1.5rem">
-    Paste a Google Maps business URL to fetch reviews and photos, then build a 12-second vertical video.
-  </p>
 
   {% if error %}
   <div class="alert alert-error">{{ error }}</div>
   {% endif %}
 
-  <form method="POST" action="/step1/submit">
+  <form hx-post="/step1/submit"
+        hx-target="#wizard-blocks"
+        hx-swap="beforeend"
+        hx-indicator="#fetch-btn">
     <div class="form-group">
       <label for="maps_url">Google Maps URL</label>
       <input
@@ -28,50 +57,18 @@
       >
       <div class="sample-urls">
         <span class="muted">Try:</span>
-        <button type="button" class="btn-sample" onclick="document.getElementById('maps_url').value='https://maps.app.goo.gl/84vY1gLFocoip6h67'">Gaya - Boutique by the Sea - Lamai, Koh Samui, 🇹🇭 Thailand</button>
-        <button type="button" class="btn-sample" onclick="document.getElementById('maps_url').value='https://maps.app.goo.gl/qtAadc4T23SA22Wx8'">Breeze Restaurant &amp; Basket Boat - Hoi An, 🇻🇳 Vietnam</button>
+        <button type="button" class="btn-sample" onclick="document.getElementById('maps_url').value='https://maps.app.goo.gl/84vY1gLFocoip6h67'">Gaya - Boutique by the Sea · Koh Samui 🇹🇭</button>
+        <button type="button" class="btn-sample" onclick="document.getElementById('maps_url').value='https://maps.app.goo.gl/qtAadc4T23SA22Wx8'">Breeze Restaurant &amp; Basket Boat · Hoi An 🇻🇳</button>
       </div>
     </div>
     <div class="actions">
-      <button type="submit" class="btn btn-primary">Fetch Place Data →</button>
+      <button id="fetch-btn" type="submit" class="btn btn-primary">
+        <span class="htmx-indicator spinner"></span>
+        Fetch Place Data →
+      </button>
     </div>
   </form>
 </div>
 
-<div class="pipeline-steps">
-  <div class="pipeline-step">
-    <span class="ps-icon">🔗</span>
-    <span class="ps-num">STEP 1</span>
-    <strong>Paste a URL</strong>
-    <p>Drop in any Google Maps business link</p>
-  </div>
-  <div class="ps-arrow"></div>
-  <div class="pipeline-step">
-    <span class="ps-icon">📍</span>
-    <span class="ps-num">STEP 2</span>
-    <strong>Fetch Place Data</strong>
-    <p>Pulls name, rating, reviews, and up to 10 photos via the Places API</p>
-  </div>
-  <div class="ps-arrow"></div>
-  <div class="pipeline-step">
-    <span class="ps-icon">✂️</span>
-    <span class="ps-num">STEP 3</span>
-    <strong>Select &amp; Arrange</strong>
-    <p>Pick the best review and drag-reorder photos</p>
-  </div>
-  <div class="ps-arrow"></div>
-  <div class="pipeline-step">
-    <span class="ps-icon">🎬</span>
-    <span class="ps-num">STEP 4</span>
-    <strong>Generate Video</strong>
-    <p>Builds a 12-second 9:16 MP4 with Ken Burns zoom, review overlay, and branded outro</p>
-  </div>
-  <div class="ps-arrow"></div>
-  <div class="pipeline-step">
-    <span class="ps-icon">🚀</span>
-    <span class="ps-num">STEP 5</span>
-    <strong>Publish</strong>
-    <p>Optionally upload straight to YouTube Shorts with auto-generated title and hashtags</p>
-  </div>
-</div>
+<div id="wizard-blocks"></div>
 {% endblock %}

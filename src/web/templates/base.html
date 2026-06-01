@@ -12,15 +12,27 @@
   <header>
     <h1>ReviewReel</h1>
     <ul class="steps">
-      <li class="{{ 'active' if active_step == 1 else ('done' if active_step and active_step > 1 else '') }}">1 URL</li>
-      <li class="{{ 'active' if active_step == 2 else ('done' if active_step and active_step > 2 else '') }}">2 Select</li>
-      <li class="{{ 'active' if active_step == 3 else ('done' if active_step and active_step > 3 else '') }}">3 Params</li>
-      <li class="{{ 'active' if active_step == 4 else ('done' if active_step and active_step > 4 else '') }}">4 Preview</li>
-      <li class="{{ 'active' if active_step == 5 else '' }}">5 Publish</li>
+      <li class="{{ 'active' if active_step == 1 else ('done' if active_step and active_step > 1 else '') }}">1 Paste URL</li>
+      <li class="{{ 'active' if active_step == 2 else ('done' if active_step and active_step > 2 else '') }}">2 Select &amp; Arrange</li>
+      <li class="{{ 'active' if active_step == 3 else '' }}">3 Publish</li>
     </ul>
   </header>
   <main>
     {% block content %}{% endblock %}
   </main>
+  <script>
+  // Auto-scroll to newly appended wizard blocks
+  document.body.addEventListener('htmx:afterSwap', function(evt) {
+    const target = evt.detail.target;
+    if (!target) return;
+    let el = null;
+    if (target.id === 'wizard-blocks') {
+      el = target.lastElementChild;
+    } else if (target.closest && target.closest('#wizard-blocks')) {
+      el = target;
+    }
+    if (el) setTimeout(function() { el.scrollIntoView({behavior: 'smooth', block: 'start'}); }, 80);
+  });
+  </script>
 </body>
 </html>

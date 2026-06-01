@@ -1,0 +1,21 @@
+<div id="publish-area">
+  {% if error %}
+  <div class="alert alert-error">Upload failed: {{ error }}</div>
+  <form hx-post="/step5/publish" hx-target="#publish-area" hx-swap="outerHTML" style="margin-top:0.75rem">
+    <button type="submit" class="btn btn-danger">Retry Upload</button>
+  </form>
+  {% elif youtube_url %}
+  <div class="alert alert-success">Video published successfully!</div>
+  <div class="yt-result">
+    <span>🎉</span>
+    <div>
+      <p class="muted" style="margin-bottom:0.3rem">Published at:</p>
+      <a href="{{ youtube_url }}" target="_blank" rel="noopener">{{ youtube_url }}</a>
+    </div>
+  </div>
+  <div class="actions" style="margin-top:1rem">
+    <a href="/" class="btn btn-primary">Generate Another Video</a>
+    <a href="{{ youtube_url }}" target="_blank" class="btn btn-outline">Open on YouTube ↗</a>
+  </div>
+  {% endif %}
+</div>

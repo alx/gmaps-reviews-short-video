@@ -1,0 +1,48 @@
+<section id="step3-block" class="wizard-block">
+  <div class="card">
+    <div class="block-label">🚀 Step 3 — Publish</div>
+    <h2>Video Preview</h2>
+    <p class="muted" style="margin-bottom:1.25rem">Review the generated video before publishing.</p>
+
+    <div class="video-preview">
+      <video controls playsinline preload="metadata"
+             style="max-width:270px; border-radius:10px; background:#000;">
+        <source src="{{ video_url }}" type="video/mp4">
+        Your browser does not support the video tag.
+      </video>
+
+      <div class="metadata-box">
+        <p class="section-title">Title</p>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:0.55rem 0.75rem;font-size:0.9rem;margin-bottom:1rem;">
+          {{ title or '(not set)' }}
+        </div>
+
+        <div id="publish-area">
+          {% if yt_authed %}
+          <form hx-post="/step5/publish"
+                hx-target="#publish-area"
+                hx-swap="outerHTML">
+            <button type="submit" class="btn btn-success" style="font-size:1rem; padding:0.7rem 1.8rem;">
+              🚀 Publish to YouTube
+            </button>
+          </form>
+          {% else %}
+          <div class="alert alert-error" style="margin-bottom:1rem">
+            YouTube account not connected. Authorize to enable publishing.
+          </div>
+          <a href="/youtube/authorize" class="btn btn-primary">Connect YouTube Account</a>
+          <p class="muted" style="margin-top:0.75rem; font-size:0.82rem;">
+            Add <code>http://127.0.0.1:5000/youtube/callback</code> as an authorized redirect URI
+            in your Google Cloud Console OAuth app.
+          </p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <a href="/" class="btn btn-outline">← Start Over</a>
+    <a href="{{ video_url }}" download class="btn btn-outline">⬇ Download MP4</a>
+  </div>
+</section>
