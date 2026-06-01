@@ -20,6 +20,7 @@ dependencies = [
 gmaps-reviews-short-video = "src.main:main"
 gmaps-publish = "src.publish:main"
 gmaps-web = "src.web.app:run_dev"
+gmaps-geojson-to-youtube = "src.geojson_to_youtube:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
