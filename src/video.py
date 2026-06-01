@@ -1,7 +1,17 @@
+import contextlib as _contextlib
 import datetime
 import os
 import random
 import textwrap
+import time as _time
+
+_timings: list[tuple[str, float]] = []
+
+@_contextlib.contextmanager
+def _timer(label: str):
+    t0 = _time.perf_counter()
+    yield
+    _timings.append((label, _time.perf_counter() - t0))
 
 import numpy as np
 import qrcode
@@ -531,8 +541,9 @@ def build_video(
     lng: float | None = None,
     card_config: dict | None = None,
 ) -> None:
-    font_bold = find_font()
-    font_reg = find_font_regular()
+    with _timer("fonts"):
+        font_bold = find_font()
+        font_reg = find_font_regular()
 
     if not photo_paths:
         raise ValueError("No photos available to build video")
@@ -557,7 +568,8 @@ def build_video(
     review_dur_cfg = float(cr["duration"]) if cr.get("duration") is not None else None
 
     # --- Map slide (requires lat/lng and enabled) ---
-    map_clip_raw = make_map_slide(lat, lng, business_name, city) if (include_map and lat and lng) else None
+    with _timer("map_slide_render"):
+        map_clip_raw = make_map_slide(lat, lng, business_name, city) if (include_map and lat and lng) else None
     has_map = map_clip_raw is not None
 
     # --- Compute effective total video length ---
@@ -581,26 +593,29 @@ def build_video(
 
     # Build photo clips with Ken Burns + crossfade
     photo_clips = []
-    for i, path in enumerate(photos):
-        clip = make_ken_burns_clip(path, clip_dur)
-        if i > 0:
-            clip = clip.with_effects([vfx.CrossFadeIn(CROSSFADE)])
-        start = i * (clip_dur - CROSSFADE)
-        clip = clip.with_start(start)
-        photo_clips.append(clip)
+    with _timer("ken_burns_clips"):
+        for i, path in enumerate(photos):
+            with _timer(f"ken_burns_clip_{i}"):
+                clip = make_ken_burns_clip(path, clip_dur)
+            if i > 0:
+                clip = clip.with_effects([vfx.CrossFadeIn(CROSSFADE)])
+            start = i * (clip_dur - CROSSFADE)
+            clip = clip.with_start(start)
+            photo_clips.append(clip)
 
     # Title card — full-screen intro
     title_clips: list = []
     if include_intro:
-        tc = (
-            make_title_card(business_name, rating, font_bold, font_reg,
-                            photo_path=photos[0],
-                            city=city, country=country, country_code=country_code)
-            .with_duration(title_dur)
-            .with_effects([vfx.FadeOut(CROSSFADE)])
-            .with_start(0)
-            .with_position("center")
-        )
+        with _timer("title_card"):
+            tc = (
+                make_title_card(business_name, rating, font_bold, font_reg,
+                                photo_path=photos[0],
+                                city=city, country=country, country_code=country_code)
+                .with_duration(title_dur)
+                .with_effects([vfx.FadeOut(CROSSFADE)])
+                .with_start(0)
+                .with_position("center")
+            )
         title_clips.append(tc)
 
     # Single review card — fills the space between title and map/outro
@@ -613,17 +628,18 @@ def build_video(
             review_end = effective_total - outro_dur - (map_dur if has_map else 0)
             review_dur = review_end - review_start
 
-        rgb_arr, alpha_arr, card_h = make_review_card(reviews[0], font_reg, font_bold)
-        card_clip = ImageClip(rgb_arr)
-        mask_clip = ImageClip(alpha_arr, is_mask=True)
-        card_clip = (
-            card_clip
-            .with_mask(mask_clip)
-            .with_duration(review_dur)
-            .with_effects([vfx.CrossFadeIn(CROSSFADE)])
-            .with_start(review_start)
-            .with_position((CARD_X, CARD_Y_BOT - card_h))
-        )
+        with _timer("review_card"):
+            rgb_arr, alpha_arr, card_h = make_review_card(reviews[0], font_reg, font_bold)
+            card_clip = ImageClip(rgb_arr)
+            mask_clip = ImageClip(alpha_arr, is_mask=True)
+            card_clip = (
+                card_clip
+                .with_mask(mask_clip)
+                .with_duration(review_dur)
+                .with_effects([vfx.CrossFadeIn(CROSSFADE)])
+                .with_start(review_start)
+                .with_position((CARD_X, CARD_Y_BOT - card_h))
+            )
         review_clips.append(card_clip)
 
     # Map slide — city context with business pinpoint, between review and outro
@@ -644,30 +660,33 @@ def build_video(
     if include_outro:
         _website = website_url if show_website else ""
         _maps_url_arg = maps_url if show_qr else ""
-        oc = make_outro_card(business_name, _website, font_bold, font_reg, _maps_url_arg,
-                             city=city, country=country, country_code=country_code)
-        oc = (
-            oc
-            .with_duration(outro_dur)
-            .with_effects([vfx.CrossFadeIn(CROSSFADE)])
-            .with_start(effective_total - outro_dur)
-            .with_position("center")
-        )
+        with _timer("outro_card"):
+            oc = make_outro_card(business_name, _website, font_bold, font_reg, _maps_url_arg,
+                                 city=city, country=country, country_code=country_code)
+            oc = (
+                oc
+                .with_duration(outro_dur)
+                .with_effects([vfx.CrossFadeIn(CROSSFADE)])
+                .with_start(effective_total - outro_dur)
+                .with_position("center")
+            )
         outro_clips.append(oc)
 
     all_clips = photo_clips + review_clips + map_clips + title_clips + outro_clips
-    final = (
-        CompositeVideoClip(all_clips, size=(W, H))
-        .with_duration(effective_total)
-        .with_effects([vfx.FadeIn(FADE), vfx.FadeOut(FADE)])
-    )
+    with _timer("composite"):
+        final = (
+            CompositeVideoClip(all_clips, size=(W, H))
+            .with_duration(effective_total)
+            .with_effects([vfx.FadeIn(FADE), vfx.FadeOut(FADE)])
+        )
 
     if music_path:
-        audio = (
-            AudioFileClip(music_path)
-            .subclipped(music_offset, music_offset + effective_total)
-            .with_effects([afx.AudioFadeIn(FADE), afx.AudioFadeOut(FADE)])
-        )
+        with _timer("audio_load"):
+            audio = (
+                AudioFileClip(music_path)
+                .subclipped(music_offset, music_offset + effective_total)
+                .with_effects([afx.AudioFadeIn(FADE), afx.AudioFadeOut(FADE)])
+            )
         final = final.with_audio(audio)
 
     comment = f"Website: {website_url}" if website_url else "Generated by gmaps-reviews-short-video"
@@ -681,15 +700,40 @@ def build_video(
         # ISO 6709 annex H format: ±DD.DDDD±DDD.DDDD/
         location_str = f"{lat:+.6f}{lng:+.6f}/"
         metadata_params += ["-metadata", f"location={location_str}"]
-    final.write_videofile(
-        output_path,
-        fps=fps,
-        codec="libx264",
-        audio=music_path is not None,
-        audio_codec="aac",
-        preset="medium",
-        threads=4,
-        logger=None,
-        ffmpeg_params=metadata_params,
-    )
+
+    # Pre-render all frames to RAM so ffmpeg encodes at full speed rather than
+    # waiting on Python to generate each frame one-by-one.
+    with _timer("prerender_frames"):
+        n_frames = int(effective_total * fps)
+        frame_times = np.linspace(0, effective_total - 1 / fps, n_frames)
+        frames = [final.get_frame(t) for t in frame_times]
+        prerendered = VideoClip(
+            lambda t: frames[min(int(t * fps), n_frames - 1)],
+            duration=effective_total,
+        )
+        if music_path:
+            prerendered = prerendered.with_audio(final.audio)
+
+    with _timer("ffmpeg_encode"):
+        prerendered.write_videofile(
+            output_path,
+            fps=fps,
+            codec="libx264",
+            audio=music_path is not None,
+            audio_codec="aac",
+            preset="medium",
+            threads=4,
+            logger=None,
+            ffmpeg_params=metadata_params,
+        )
     print(f"  Saved: {output_path}")
+
+    if _timings:
+        total_t = sum(t for _, t in _timings)
+        print("\n── Video generation timing ──────────────────")
+        for label, t in _timings:
+            bar = "█" * int(t / total_t * 30) if total_t > 0 else ""
+            print(f"  {label:<26} {t:6.2f}s  {bar}")
+        print(f"  {'TOTAL':<26} {total_t:6.2f}s")
+        print("─────────────────────────────────────────────\n")
+        _timings.clear()

@@ -31,4 +31,5 @@ build-backend = "hatchling.build"
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",
+    "pyinstrument>=4.6",
 ]
