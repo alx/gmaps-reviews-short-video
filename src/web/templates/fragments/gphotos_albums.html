@@ -1,0 +1,26 @@
+<div class="gp-album-list">
+  {% for album in albums %}
+  <button type="button" class="btn btn-outline btn-sm gp-album-btn"
+          hx-get="/gphotos/media?album_id={{ album.id | urlencode }}"
+          hx-target="#gp-browser"
+          hx-swap="innerHTML">
+    {% if album.coverPhotoBaseUrl %}
+    <img src="{{ album.coverPhotoBaseUrl }}=w48-h48-c" width="48" height="48" alt="" class="gp-album-cover">
+    {% endif %}
+    <span class="gp-album-title">{{ album.title }}</span>
+    {% if album.mediaItemsCount %}
+    <span class="muted" style="font-size:0.75rem">{{ album.mediaItemsCount }}</span>
+    {% endif %}
+  </button>
+  {% else %}
+  <p class="muted">No albums found in your Google Photos library.</p>
+  {% endfor %}
+</div>
+{% if next_page_token %}
+<button type="button" class="btn btn-outline btn-sm" style="margin-top:0.5rem"
+        hx-get="/gphotos/albums?page_token={{ next_page_token | urlencode }}"
+        hx-target="#gp-album-list"
+        hx-swap="beforeend">
+  Load more albums
+</button>
+{% endif %}

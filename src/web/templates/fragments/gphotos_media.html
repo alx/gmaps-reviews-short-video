@@ -1,0 +1,52 @@
+<div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.75rem; flex-wrap:wrap;">
+  <button type="button" class="btn btn-outline btn-sm"
+          hx-get="/gphotos/albums"
+          hx-target="#gp-browser"
+          hx-swap="innerHTML">
+    ← Albums
+  </button>
+  <p class="muted" style="margin:0; font-size:0.82rem">
+    Select up to 5 photos. First 5 selected will be used in the slideshow.
+  </p>
+</div>
+
+<div class="photo-grid" id="gp-media-grid">
+  {% for item in items %}
+  {% set thumb_url = item.baseUrl + "=w400-h711-c" %}
+  <div class="photo-item"
+       data-gp-id="{{ item.id }}"
+       data-gp-baseurl="{{ item.baseUrl }}">
+    <span class="photo-num">{{ loop.index }}</span>
+    <img src="{{ thumb_url }}" alt="{{ item.filename }}" loading="lazy">
+    <span class="photo-check">
+      <input type="checkbox" class="gp-photo-cb" value="{{ item.id }}"
+             title="Select {{ item.filename }}">
+    </span>
+  </div>
+  {% else %}
+  <p class="muted">No photos in this album.</p>
+  {% endfor %}
+</div>
+
+{% if next_page_token %}
+<button type="button" class="btn btn-outline btn-sm" style="margin-top:0.5rem"
+        hx-get="/gphotos/media?album_id={{ album_id | urlencode }}&page_token={{ next_page_token | urlencode }}"
+        hx-target="#gp-media-grid"
+        hx-swap="beforeend">
+  Load more photos
+</button>
+{% endif %}
+
+<script>
+(function () {
+  var MAX_SELECT = 5;
+  function updateGpCount() {
+    var checked = document.querySelectorAll('#gp-media-grid .gp-photo-cb:checked').length;
+    document.querySelectorAll('#gp-media-grid .gp-photo-cb:not(:checked)').forEach(function (cb) {
+      cb.disabled = checked >= MAX_SELECT;
+    });
+  }
+  document.getElementById('gp-media-grid').addEventListener('change', updateGpCount);
+  updateGpCount();
+})();
+</script>

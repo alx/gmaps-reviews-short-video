@@ -171,6 +171,85 @@ def _generate_task(
     )
 
 
+def _generate_task_gphotos(
+    task: TaskState,
+    session_dir: str,
+    place_data: dict,
+    gp_baseurls: list[str],
+    selected_review: dict,
+    music_path: str | None,
+    music_offset: float,
+    maps_url: str,
+) -> None:
+    import datetime
+    import json
+
+    import httpx
+
+    store.update(task.task_id, status=TaskStatus.RUNNING, progress="Downloading Google Photos…", progress_pct=10)
+    photo_dir = Path(session_dir) / "photos"
+    photo_dir.mkdir(parents=True, exist_ok=True)
+    photo_paths: list[str] = []
+    for slot, base_url in enumerate(gp_baseurls[:5]):
+        try:
+            resp = httpx.get(base_url + "=w1080-h1920-c", follow_redirects=True, timeout=30)
+            resp.raise_for_status()
+            out = photo_dir / f"photo_{slot}.jpg"
+            out.write_bytes(resp.content)
+            photo_paths.append(str(out))
+        except Exception as exc:
+            store.update(task.task_id, status=TaskStatus.ERROR, error=f"Photo download failed: {exc}")
+            return
+
+    store.update(task.task_id, progress="Generating video…", progress_pct=40)
+    output_path = str(Path(session_dir) / "video.mp4")
+    try:
+        video_mod.build_video(
+            business_name=place_data["business_name"],
+            rating=place_data["rating"],
+            photo_paths=photo_paths,
+            reviews=[selected_review] if selected_review else [],
+            output_path=output_path,
+            website_url=place_data.get("website_url", ""),
+            music_path=music_path,
+            maps_url=maps_url,
+            music_offset=music_offset,
+        )
+    except Exception as exc:
+        store.update(task.task_id, status=TaskStatus.ERROR, error=f"Video generation failed: {exc}")
+        return
+
+    store.update(task.task_id, progress="Saving metadata…", progress_pct=90)
+    metadata = {
+        "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
+        "maps_url": maps_url,
+        "business_name": place_data["business_name"],
+        "rating": place_data["rating"],
+        "review_count": place_data["review_count"],
+        "website_url": place_data.get("website_url", ""),
+        "review": selected_review or None,
+        "photo_count": len(photo_paths),
+        "photo_source": "google_photos",
+        "music": music_path,
+        "output_video": output_path,
+    }
+    metadata_path = str(Path(session_dir) / "metadata.json")
+    with open(metadata_path, "w", encoding="utf-8") as f:
+        json.dump(metadata, f, indent=2, ensure_ascii=False)
+
+    store.update(
+        task.task_id,
+        status=TaskStatus.DONE,
+        progress="Done",
+        progress_pct=100,
+        result={
+            "video_path": output_path,
+            "metadata_path": metadata_path,
+            "metadata": metadata,
+        },
+    )
+
+
 def _publish_task(
     task: TaskState,
     video_path: str,

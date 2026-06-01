@@ -1,5 +1,6 @@
 # Secrets
 client_secrets.json
+gphotos_client_secrets.json
 .env
 .env.local
 .env.*.local

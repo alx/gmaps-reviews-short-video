@@ -204,6 +204,10 @@ def poll_fetch(task_id: str):
     mp3_dir = Path(current_app.config.get("PROJECT_ROOT", "")) / "mp3"
     preset_music = sorted(p.name for p in mp3_dir.glob("*.mp3")) if mp3_dir.exists() else []
 
+    from ..routes.gphotos_oauth import get_or_refresh_gp_credentials
+
+    gp_authed = get_or_refresh_gp_credentials(result["session_dir"]) is not None
+
     return render_template(
         "fragments/step2_block.html",
         fetch_task_id=task_id,
@@ -215,6 +219,7 @@ def poll_fetch(task_id: str):
         preset_music=preset_music,
         suggested_title=suggested_title,
         suggested_description=suggested_description,
+        gp_authed=gp_authed,
     )
 
 
@@ -331,22 +336,43 @@ def step2_submit():
     reviews = result.get("reviews", [])
     selected_review = reviews[review_idx] if reviews and review_idx < len(reviews) else {}
 
-    try:
-        photo_indices = [int(x) for x in photo_order]
-    except (ValueError, TypeError):
-        photo_indices = list(range(min(5, len(result.get("raw_photos", [])))))
+    photo_source = request.form.get("photo_source", "places")
 
-    gen_task = task_mod.run_in_thread(
-        task_mod._generate_task,
-        result["session_dir"],
-        result,
-        photo_indices,
-        selected_review,
-        _api_key(),
-        music_path,
-        0.0,
-        session.get("maps_url", ""),
-    )
+    if photo_source == "gphotos":
+        gp_baseurls = request.form.getlist("gp_photo_baseurls")[:5]
+        if not gp_baseurls:
+            return render_template(
+                "fragments/error_block.html",
+                message="No Google Photos selected. Please select at least one photo.",
+            ), 200
+        gen_task = task_mod.run_in_thread(
+            task_mod._generate_task_gphotos,
+            result["session_dir"],
+            result,
+            gp_baseurls,
+            selected_review,
+            music_path,
+            0.0,
+            session.get("maps_url", ""),
+        )
+    else:
+        try:
+            photo_indices = [int(x) for x in photo_order]
+        except (ValueError, TypeError):
+            photo_indices = list(range(min(5, len(result.get("raw_photos", [])))))
+
+        gen_task = task_mod.run_in_thread(
+            task_mod._generate_task,
+            result["session_dir"],
+            result,
+            photo_indices,
+            selected_review,
+            _api_key(),
+            music_path,
+            0.0,
+            session.get("maps_url", ""),
+        )
+
     session["generate_task_id"] = gen_task.task_id
     return render_template(
         "fragments/loading_generate.html",

@@ -33,34 +33,74 @@
     </div>
 
     <!-- Photos -->
-    {% if thumb_urls %}
     <div class="card">
       <h3>Choose &amp; Order Photos</h3>
-      <p class="muted" style="margin-bottom:0.5rem">
-        Drag to reorder. Uncheck to exclude. First 5 selected photos will be used in the slideshow.
-      </p>
-      <div class="photo-actions">
-        <button type="button" class="btn btn-outline btn-sm" id="btn-select-all">Select all</button>
-        <button type="button" class="btn btn-outline btn-sm" id="btn-select-none">Select none</button>
+
+      <!-- Source tabs -->
+      <div class="photo-source-tabs">
+        <button type="button" class="btn btn-outline btn-sm photo-tab-btn active" data-tab="places"
+                onclick="switchPhotoTab('places')">Place Photos</button>
+        <button type="button" class="btn btn-outline btn-sm photo-tab-btn" data-tab="gphotos"
+                onclick="switchPhotoTab('gphotos')">
+          {% if gp_authed %}My Google Photos{% else %}Connect Google Photos{% endif %}
+        </button>
       </div>
-      <div class="photo-grid" id="photo-grid">
-        {% for url in thumb_urls %}
-        <div class="photo-item" data-idx="{{ loop.index0 }}">
-          <span class="photo-num">{{ loop.index }}</span>
-          <img src="{{ url }}" alt="Photo {{ loop.index }}" loading="lazy">
-          <span class="photo-check">
-            <input type="checkbox" name="selected_photos" value="{{ loop.index0 }}" checked title="Include photo {{ loop.index }}">
-          </span>
+
+      <!-- Place Photos tab (existing) -->
+      <div id="tab-places" class="photo-tab-panel">
+        {% if thumb_urls %}
+        <p class="muted" style="margin-bottom:0.5rem">
+          Drag to reorder. Uncheck to exclude. First 5 selected photos will be used in the slideshow.
+        </p>
+        <div class="photo-actions">
+          <button type="button" class="btn btn-outline btn-sm" id="btn-select-all">Select all</button>
+          <button type="button" class="btn btn-outline btn-sm" id="btn-select-none">Select none</button>
         </div>
-        {% endfor %}
+        <div class="photo-grid" id="photo-grid">
+          {% for url in thumb_urls %}
+          <div class="photo-item" data-idx="{{ loop.index0 }}">
+            <span class="photo-num">{{ loop.index }}</span>
+            <img src="{{ url }}" alt="Photo {{ loop.index }}" loading="lazy">
+            <span class="photo-check">
+              <input type="checkbox" name="selected_photos" value="{{ loop.index0 }}" checked title="Include photo {{ loop.index }}">
+            </span>
+          </div>
+          {% endfor %}
+        </div>
+        <div id="photo-order-inputs">
+          {% for url in thumb_urls %}
+          <input type="hidden" name="photo_order" value="{{ loop.index0 }}">
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">No place photos available.</p>
+        {% endif %}
       </div>
-      <div id="photo-order-inputs">
-        {% for url in thumb_urls %}
-        <input type="hidden" name="photo_order" value="{{ loop.index0 }}">
-        {% endfor %}
+
+      <!-- Google Photos tab -->
+      <div id="tab-gphotos" class="photo-tab-panel" style="display:none">
+        {% if gp_authed %}
+        <div id="gp-browser"
+             hx-get="/gphotos/albums"
+             hx-trigger="intersect once"
+             hx-swap="innerHTML">
+          <p class="muted">Loading albums…</p>
+        </div>
+        {% else %}
+        <div style="padding:0.5rem 0">
+          <p class="muted" style="margin-bottom:0.75rem">
+            Authorize once to browse photos from your personal Google Photos library.
+            Your token is stored only for this session.
+          </p>
+          <a href="/gphotos/authorize" class="btn btn-primary">Connect Google Photos</a>
+        </div>
+        {% endif %}
       </div>
     </div>
-    {% endif %}
+
+    <!-- Hidden inputs for photo source + GP selection (populated by JS) -->
+    <input type="hidden" name="photo_source" id="photo-source-input" value="places">
+    <div id="gp-order-inputs"></div>
 
     <!-- Music -->
     <div class="card">
@@ -152,7 +192,13 @@
   // missed change/drag events don't leave stale photo_order values.
   var form = document.getElementById('select-form');
   if (form) {
-    form.addEventListener('htmx:beforeRequest', updateOrder);
+    form.addEventListener('htmx:beforeRequest', function () {
+      if (document.getElementById('photo-source-input').value === 'gphotos') {
+        updateGpOrder();
+      } else {
+        updateOrder();
+      }
+    });
   }
 
   document.getElementById('btn-select-all').addEventListener('click', function () {
@@ -196,6 +242,33 @@
     });
   });
 })();
+
+function switchPhotoTab(tab) {
+  document.getElementById('photo-source-input').value = tab;
+  document.querySelectorAll('.photo-tab-panel').forEach(function (p) {
+    p.style.display = 'none';
+  });
+  document.getElementById('tab-' + tab).style.display = '';
+  document.querySelectorAll('.photo-tab-btn').forEach(function (b) {
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+}
+
+function updateGpOrder() {
+  var container = document.getElementById('gp-order-inputs');
+  container.innerHTML = '';
+  document.querySelectorAll('#gp-media-grid .photo-item').forEach(function (item) {
+    var cb = item.querySelector('.gp-photo-cb');
+    if (cb && cb.checked) {
+      var idInp = document.createElement('input');
+      idInp.type = 'hidden'; idInp.name = 'gp_photo_ids'; idInp.value = item.dataset.gpId;
+      container.appendChild(idInp);
+      var urlInp = document.createElement('input');
+      urlInp.type = 'hidden'; urlInp.name = 'gp_photo_baseurls'; urlInp.value = item.dataset.gpBaseurl;
+      container.appendChild(urlInp);
+    }
+  });
+}
 
 function loadMusicLicense(filename) {
   if (!filename) {
