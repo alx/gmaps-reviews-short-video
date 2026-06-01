@@ -1,5 +1,8 @@
 <section id="step2-block" class="wizard-block">
   <div class="card">
+    {% if thumb_urls %}
+    <img src="{{ thumb_urls[0] }}" alt="{{ business_name }}" class="business-cover">
+    {% endif %}
     <div class="block-label">✂️ Step 2 — Select &amp; Arrange</div>
     <h2>{{ business_name }}</h2>
     <p class="muted">⭐ {{ rating }} &nbsp;·&nbsp; {{ review_count }} reviews</p>

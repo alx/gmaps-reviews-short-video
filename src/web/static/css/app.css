@@ -282,6 +282,14 @@ hr { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
   box-shadow: 0 0 0 1px var(--accent), 0 4px 24px rgba(79,142,247,0.12);
 }
 .card-hero h2 { font-size: 1.35rem; }
+.business-cover {
+  display: block;
+  width: calc(100% + 3rem);
+  margin: -1.5rem -1.5rem 1rem -1.5rem;
+  height: 180px;
+  object-fit: cover;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
 
 /* ── Pipeline steps ─────────────────────── */
 .pipeline-steps {
