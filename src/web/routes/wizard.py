@@ -220,6 +220,7 @@ def poll_fetch(task_id: str):
         suggested_title=suggested_title,
         suggested_description=suggested_description,
         gp_authed=gp_authed,
+        has_location=bool(result.get("lat") and result.get("lng")),
     )
 
 
@@ -271,9 +272,9 @@ def poll_generate(task_id: str):
 def poll_publish(task_id: str):
     task = task_mod.store.get(task_id)
     if not task:
-        return render_template("fragments/publish_result.html", error="Task not found.")
+        return render_template("fragments/publish_result.html", error="Task not found.", youtube_url=None, title="")
     if task.status == TaskStatus.ERROR:
-        return render_template("fragments/publish_result.html", error=task.error)
+        return render_template("fragments/publish_result.html", error=task.error, youtube_url=None, title="")
     if task.status != TaskStatus.DONE:
         return render_template(
             "fragments/publish_loading.html",
@@ -284,6 +285,7 @@ def poll_publish(task_id: str):
     return render_template(
         "fragments/publish_result.html",
         youtube_url=task.result.get("youtube_url"),
+        title=session.get("title_override", ""),
         error=None,
     )
 
@@ -325,6 +327,34 @@ def step2_submit():
 
     session["music_path"] = music_path
 
+    def _float(name: str, default: float) -> float:
+        try:
+            return float(request.form.get(name, default))
+        except (ValueError, TypeError):
+            return default
+
+    card_config = {
+        "intro":  {
+            "enabled":  bool(request.form.get("card_intro_enabled")),
+            "duration": _float("card_intro_duration", 2.0),
+        },
+        "review": {
+            "enabled":  bool(request.form.get("card_review_enabled")),
+            "duration": _float("card_review_duration", 4.0),
+        },
+        "map":    {
+            "enabled":  bool(request.form.get("card_map_enabled")),
+            "duration": _float("card_map_duration", 3.0),
+        },
+        "outro":  {
+            "enabled":      bool(request.form.get("card_outro_enabled")),
+            "duration":     _float("card_outro_duration", 5.0),
+            "show_qr":      bool(request.form.get("card_outro_qr")),
+            "show_website": bool(request.form.get("card_outro_website")),
+        },
+    }
+    session["card_config"] = card_config
+
     # Use hidden form field first (survives session loss), fall back to session cookie
     fetch_task_id = request.form.get("fetch_task_id") or session.get("fetch_task_id")
     fetch_task = task_mod.store.get(fetch_task_id) if fetch_task_id else None
@@ -354,6 +384,7 @@ def step2_submit():
             music_path,
             0.0,
             session.get("maps_url", ""),
+            card_config,
         )
     else:
         try:
@@ -371,6 +402,7 @@ def step2_submit():
             music_path,
             0.0,
             session.get("maps_url", ""),
+            card_config,
         )
 
     session["generate_task_id"] = gen_task.task_id

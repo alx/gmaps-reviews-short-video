@@ -9,14 +9,6 @@
   <script src="{{ url_for('static', filename='js/sortable.min.js') }}"></script>
 </head>
 <body>
-  <header>
-    <h1>ReviewReel</h1>
-    <ul class="steps">
-      <li class="{{ 'active' if active_step == 1 else ('done' if active_step and active_step > 1 else '') }}">1 Paste URL</li>
-      <li class="{{ 'active' if active_step == 2 else ('done' if active_step and active_step > 2 else '') }}">2 Select &amp; Arrange</li>
-      <li class="{{ 'active' if active_step == 3 else '' }}">3 Publish</li>
-    </ul>
-  </header>
   <main>
     {% block content %}{% endblock %}
   </main>
@@ -25,21 +17,16 @@
     var target = evt.detail.target;
     if (!target) return;
 
-    // Auto-scroll when a new block is appended to wizard-blocks (beforeend swaps).
-    // Re-query lastElementChild inside the timeout — the "load" poll on loading_generate
-    // fires at ~50ms and replaces the node before the 80ms timeout, leaving a detached
-    // reference. Querying at 120ms always gets the current live element.
-    if (target.id === 'wizard-blocks') {
+    // Auto-scroll when a step area is updated with new content.
+    var stepAreas = ['step2-area', 'step3-area', 'step4-area'];
+    if (stepAreas.indexOf(target.id) >= 0) {
       setTimeout(function() {
-        var last = target.lastElementChild;
-        if (last) last.scrollIntoView({behavior: 'smooth', block: 'start'});
+        target.scrollIntoView({behavior: 'smooth', block: 'start'});
       }, 120);
     }
 
-    // Re-enable the Generate button once video generation finishes (success path).
-    // poll/generate replaces #loading-generate-group with step3_block.html via outerHTML,
-    // so immediately after that swap the ID no longer exists in the DOM.
-    if (target.id === 'loading-generate-group' && !document.getElementById('loading-generate-group')) {
+    // Re-enable the Generate button once video generation finishes (step3-area gets new content).
+    if (target.id === 'step3-area') {
       var btn = document.getElementById('generate-btn');
       if (btn) btn.disabled = false;
     }

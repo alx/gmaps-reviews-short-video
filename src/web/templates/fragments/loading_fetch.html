@@ -1,10 +1,9 @@
-<div id="loading-fetch-group">
 <section id="loading-fetch" class="wizard-block"
   {% if not error %}
   hx-get="/tasks/{{ task_id }}/poll/fetch"
   hx-trigger="every 1s"
-  hx-swap="outerHTML"
-  hx-target="#loading-fetch-group"
+  hx-swap="innerHTML"
+  hx-target="#step2-area"
   {% endif %}>
   <div class="card loading-card">
     <div class="block-label">⏳ Fetching Place Data</div>
@@ -21,28 +20,3 @@
     </div>
   </div>
 </section>
-
-<!-- Ghost preview of upcoming steps -->
-<section class="wizard-block ghost-block">
-  <div class="card ghost-card">
-    <div class="block-label">✂️ Step 2 — Select &amp; Arrange</div>
-    <p class="ghost-hint">Pick the best review, drag-reorder photos, choose background music.</p>
-    <div class="ghost-rows">
-      <div class="ghost-row ghost-wide"></div>
-      <div class="ghost-row ghost-medium"></div>
-      <div class="ghost-row ghost-short"></div>
-    </div>
-  </div>
-</section>
-
-<section class="wizard-block ghost-block">
-  <div class="card ghost-card">
-    <div class="block-label">🚀 Step 3 — Publish</div>
-    <p class="ghost-hint">Preview the generated video and publish to YouTube Shorts.</p>
-    <div class="ghost-rows">
-      <div class="ghost-row ghost-wide"></div>
-      <div class="ghost-row ghost-short"></div>
-    </div>
-  </div>
-</section>
-</div>

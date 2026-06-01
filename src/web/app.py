@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from urllib.parse import quote_plus
 
 from dotenv import load_dotenv
 from flask import Flask
@@ -25,6 +26,8 @@ def create_app(config: dict | None = None) -> Flask:
     workspace = project_root / "web_workspace"
     workspace.mkdir(exist_ok=True)
     app.config["WORKSPACE_DIR"] = str(workspace)
+
+    app.jinja_env.filters["urlencode"] = quote_plus
 
     if config:
         app.config.update(config)

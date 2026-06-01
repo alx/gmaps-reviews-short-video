@@ -529,6 +529,7 @@ def build_video(
     country_code: str = "",
     lat: float | None = None,
     lng: float | None = None,
+    card_config: dict | None = None,
 ) -> None:
     font_bold = find_font()
     font_reg = find_font_regular()
@@ -536,15 +537,46 @@ def build_video(
     if not photo_paths:
         raise ValueError("No photos available to build video")
 
-    map_clip_raw = make_map_slide(lat, lng, business_name, city) if (lat and lng) else None
+    # --- Card configuration (per-card enable/duration/content toggles) ---
+    cfg = card_config or {}
+    ci = cfg.get("intro",  {})
+    cr = cfg.get("review", {})
+    cm = cfg.get("map",    {})
+    co = cfg.get("outro",  {})
+
+    include_intro  = bool(ci.get("enabled", True))
+    include_review = bool(cr.get("enabled", True))
+    include_map    = bool(cm.get("enabled", True))
+    include_outro  = bool(co.get("enabled", True))
+    show_qr        = bool(co.get("show_qr", True))
+    show_website   = bool(co.get("show_website", True))
+
+    title_dur = float(ci.get("duration", TITLE_DUR))
+    map_dur   = float(cm.get("duration", MAP_DUR))
+    outro_dur = float(co.get("duration", OUTRO_DUR))
+    review_dur_cfg = float(cr["duration"]) if cr.get("duration") is not None else None
+
+    # --- Map slide (requires lat/lng and enabled) ---
+    map_clip_raw = make_map_slide(lat, lng, business_name, city) if (include_map and lat and lng) else None
     has_map = map_clip_raw is not None
-    effective_total = TOTAL + (MAP_DUR if has_map else 0)
+
+    # --- Compute effective total video length ---
+    if review_dur_cfg is not None:
+        # Sum active card durations, subtract crossfade overlaps between adjacent cards
+        active_durs = []
+        if include_intro:  active_durs.append(title_dur)
+        if include_review: active_durs.append(review_dur_cfg)
+        if has_map:        active_durs.append(map_dur)
+        if include_outro:  active_durs.append(outro_dur)
+        n_transitions = max(0, len(active_durs) - 1)
+        effective_total = max(sum(active_durs) - n_transitions * CROSSFADE, FADE * 2 + 1.0)
+    else:
+        effective_total = TOTAL + (map_dur if has_map else 0)
 
     n = min(len(photo_paths), 5)
     photos = random.sample(photo_paths, n)
 
-    # Each photo's visible duration so total = effective_total seconds
-    # With crossfades: total = n * clip_dur - (n-1) * CROSSFADE
+    # Each photo's visible duration so clips fill effective_total
     clip_dur = (effective_total + (n - 1) * CROSSFADE) / n
 
     # Build photo clips with Ken Burns + crossfade
@@ -557,23 +589,29 @@ def build_video(
         clip = clip.with_start(start)
         photo_clips.append(clip)
 
-    # Title card — full-screen intro for the first TITLE_DUR seconds
-    title_clip = (
-        make_title_card(business_name, rating, font_bold, font_reg,
-                        photo_path=photos[0],
-                        city=city, country=country, country_code=country_code)
-        .with_duration(TITLE_DUR)
-        .with_effects([vfx.FadeOut(CROSSFADE)])
-        .with_start(0)
-        .with_position("center")
-    )
+    # Title card — full-screen intro
+    title_clips: list = []
+    if include_intro:
+        tc = (
+            make_title_card(business_name, rating, font_bold, font_reg,
+                            photo_path=photos[0],
+                            city=city, country=country, country_code=country_code)
+            .with_duration(title_dur)
+            .with_effects([vfx.FadeOut(CROSSFADE)])
+            .with_start(0)
+            .with_position("center")
+        )
+        title_clips.append(tc)
 
-    # Single review card — visible from title fade-out through map/outro fade-in
-    review_clips = []
-    if reviews:
-        review_start = TITLE_DUR - CROSSFADE
-        review_end = effective_total - OUTRO_DUR - (MAP_DUR if has_map else 0)
-        review_dur = review_end - review_start
+    # Single review card — fills the space between title and map/outro
+    review_clips: list = []
+    if reviews and include_review:
+        review_start = (title_dur - CROSSFADE) if include_intro else 0.0
+        if review_dur_cfg is not None:
+            review_dur = review_dur_cfg
+        else:
+            review_end = effective_total - outro_dur - (map_dur if has_map else 0)
+            review_dur = review_end - review_start
 
         rgb_arr, alpha_arr, card_h = make_review_card(reviews[0], font_reg, font_bold)
         card_clip = ImageClip(rgb_arr)
@@ -589,30 +627,35 @@ def build_video(
         review_clips.append(card_clip)
 
     # Map slide — city context with business pinpoint, between review and outro
-    map_clips = []
+    map_clips: list = []
     if has_map:
-        map_start = effective_total - OUTRO_DUR - MAP_DUR
+        map_start = effective_total - outro_dur - map_dur
         map_slide = (
             map_clip_raw
-            .with_duration(MAP_DUR)
+            .with_duration(map_dur)
             .with_effects([vfx.CrossFadeIn(CROSSFADE)])
             .with_start(map_start)
             .with_position("center")
         )
         map_clips.append(map_slide)
 
-    # Outro card — business name + URL + QR code, visible for the last OUTRO_DUR seconds
-    outro_clip = make_outro_card(business_name, website_url, font_bold, font_reg, maps_url,
-                                 city=city, country=country, country_code=country_code)
-    outro_clip = (
-        outro_clip
-        .with_duration(OUTRO_DUR)
-        .with_effects([vfx.CrossFadeIn(CROSSFADE)])
-        .with_start(effective_total - OUTRO_DUR)
-        .with_position("center")
-    )
+    # Outro card — business name + URL + QR code
+    outro_clips: list = []
+    if include_outro:
+        _website = website_url if show_website else ""
+        _maps_url_arg = maps_url if show_qr else ""
+        oc = make_outro_card(business_name, _website, font_bold, font_reg, _maps_url_arg,
+                             city=city, country=country, country_code=country_code)
+        oc = (
+            oc
+            .with_duration(outro_dur)
+            .with_effects([vfx.CrossFadeIn(CROSSFADE)])
+            .with_start(effective_total - outro_dur)
+            .with_position("center")
+        )
+        outro_clips.append(oc)
 
-    all_clips = photo_clips + review_clips + map_clips + [title_clip, outro_clip]
+    all_clips = photo_clips + review_clips + map_clips + title_clips + outro_clips
     final = (
         CompositeVideoClip(all_clips, size=(W, H))
         .with_duration(effective_total)

@@ -27,28 +27,28 @@ a { color: var(--accent); text-decoration: none; }
 a:hover { color: var(--accent-hover); text-decoration: underline; }
 
 /* ── Layout ─────────────────────────────── */
-header {
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  padding: 0.75rem 1.5rem;
-  display: flex;
-  align-items: center;
-  gap: 2rem;
+main { max-width: 860px; margin: 0 auto; padding: 0 1.5rem 4rem; }
+
+/* ── Hero intro ──────────────────────────── */
+.intro-section {
+  text-align: center;
+  padding: 3.5rem 1.5rem 2rem;
 }
-header h1 { font-size: 1.1rem; font-weight: 700; letter-spacing: 0.05em; color: var(--accent); }
-
-main { max-width: 860px; margin: 2rem auto; padding: 0 1.5rem; }
-
-/* ── Step indicator ─────────────────────── */
-.steps { display: flex; gap: 0; list-style: none; }
-.steps li {
-  font-size: 0.78rem;
+.intro-title {
+  font-size: 2.8rem;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: -0.03em;
+  margin-bottom: 0.75rem;
+}
+.intro-desc {
+  font-size: 1.05rem;
   color: var(--text-muted);
-  padding: 0.3rem 0.8rem;
-  border-radius: 20px;
+  max-width: 520px;
+  margin: 0 auto 0.6rem;
+  line-height: 1.65;
 }
-.steps li.active { background: var(--accent); color: #fff; font-weight: 600; }
-.steps li.done { color: var(--success); }
+.intro-contact { font-size: 0.88rem; }
 
 /* ── Card ───────────────────────────────── */
 .card {
@@ -480,3 +480,123 @@ button.htmx-request { opacity: 0.7; pointer-events: none; }
 .gp-album-btn { display: flex; align-items: center; gap: 0.6rem; text-align: left; padding: 0.4rem 0.6rem; }
 .gp-album-cover { border-radius: 4px; object-fit: cover; flex-shrink: 0; }
 .gp-album-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── YouTube embed (responsive 16:9) ───────── */
+.yt-embed-wrap {
+  position: relative;
+  padding-bottom: 56.25%;
+  height: 0;
+  overflow: hidden;
+  border-radius: 8px;
+  margin: 1rem 0;
+}
+.yt-embed-wrap iframe {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  border-radius: 8px;
+}
+
+/* ── Social sharing row ─────────────────────── */
+.social-share-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 0.5rem;
+}
+.social-share-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+.social-share-btn:hover { opacity: 0.82; text-decoration: none; }
+.share-x      { background: #000;     color: #fff; }
+.share-fb     { background: #1877f2;  color: #fff; }
+.share-li     { background: #0a66c2;  color: #fff; }
+.share-reddit { background: #ff4500;  color: #fff; }
+.share-wa     { background: #25d366;  color: #000; }
+
+/* ── Video Card config table ────────────────── */
+.card-config-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.card-config-row {
+  display: grid;
+  grid-template-columns: 130px 1fr 160px;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+}
+.card-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+  margin: 0;
+}
+.card-toggle-label input[type="checkbox"] {
+  width: auto;
+  accent-color: var(--accent);
+}
+.card-config-name { white-space: nowrap; }
+.card-config-desc {
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+.card-outro-opts {
+  display: inline-flex;
+  gap: 0.75rem;
+  margin-left: 0.5rem;
+  font-size: 0.82rem;
+  flex-wrap: wrap;
+}
+.card-toggle-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+.card-toggle-inline input[type="checkbox"] {
+  width: auto;
+  accent-color: var(--accent);
+}
+.card-config-dur {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+  min-width: 140px;
+}
+.dur-slider {
+  flex: 1;
+  min-width: 90px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  height: 4px;
+}
+.dur-val {
+  min-width: 2.4rem;
+  text-align: right;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--accent);
+}

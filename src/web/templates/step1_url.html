@@ -5,70 +5,85 @@
 
 {% block content %}
 
-<!-- Step roadmap -->
-<div class="step-roadmap">
-  <div class="step-roadmap-item step-roadmap-active">
-    <div class="srm-icon">🔗</div>
-    <div class="srm-body">
-      <strong>Step 1 — Paste a URL</strong>
-      <p>Drop in any Google Maps business link. ReviewReel fetches name, rating, reviews, and up to 10 photos.</p>
-    </div>
-  </div>
-  <div class="srm-connector"></div>
-  <div class="step-roadmap-item step-roadmap-pending">
-    <div class="srm-icon">✂️</div>
-    <div class="srm-body">
-      <strong>Step 2 — Select &amp; Arrange</strong>
-      <p>Pick the best review, drag-reorder photos, choose background music. Tweak the YouTube title &amp; description.</p>
-    </div>
-  </div>
-  <div class="srm-connector"></div>
-  <div class="step-roadmap-item step-roadmap-pending">
-    <div class="srm-icon">🚀</div>
-    <div class="srm-body">
-      <strong>Step 3 — Publish</strong>
-      <p>Preview the 12-second 9:16 MP4 and publish straight to YouTube Shorts with one click.</p>
-    </div>
-  </div>
-</div>
+<!-- Hero intro -->
+<section class="intro-section">
+  <h1 class="intro-title">ReviewReel</h1>
+  <p class="intro-desc">Turn any Google Maps business into a polished short video — ready to publish on YouTube Shorts in minutes.</p>
+  <p class="intro-contact muted">Need custom features or integrations? <a href="mailto:reviewreel@alexgirard.com">Contact us</a></p>
+</section>
 
-<!-- URL form -->
-<div class="card card-hero">
-  <h2>Generate a Short Video from Google Maps</h2>
+<div id="wizard-blocks">
 
-  {% if error %}
-  <div class="alert alert-error">{{ error }}</div>
-  {% endif %}
+  <!-- Step 1 — URL input (always active) -->
+  <section id="step1-block" class="wizard-block">
+    <div class="card card-hero">
+      <div class="block-label">🔗 Step 1 — Paste a URL</div>
+      <h2>Generate a Short Video from Google Maps</h2>
 
-  <form hx-post="/step1/submit"
-        hx-target="#wizard-blocks"
-        hx-swap="beforeend"
-        hx-indicator="#fetch-btn">
-    <div class="form-group">
-      <label for="maps_url">Google Maps URL</label>
-      <input
-        type="url"
-        id="maps_url"
-        name="maps_url"
-        placeholder="https://www.google.com/maps/place/…"
-        required
-        autofocus
-        style="font-size:1rem; padding: 0.7rem 0.9rem;"
-      >
-      <div class="sample-urls">
-        <span class="muted">Try:</span>
-        <button type="button" class="btn-sample" onclick="document.getElementById('maps_url').value='https://maps.app.goo.gl/84vY1gLFocoip6h67'">Gaya - Boutique by the Sea · Koh Samui 🇹🇭</button>
-        <button type="button" class="btn-sample" onclick="document.getElementById('maps_url').value='https://maps.app.goo.gl/qtAadc4T23SA22Wx8'">Breeze Restaurant &amp; Basket Boat · Hoi An 🇻🇳</button>
+      {% if error %}
+      <div class="alert alert-error">{{ error }}</div>
+      {% endif %}
+
+      <form hx-post="/step1/submit"
+            hx-target="#step2-area"
+            hx-swap="innerHTML"
+            hx-indicator="#fetch-btn">
+        <div class="form-group">
+          <label for="maps_url">Google Maps URL</label>
+          <input
+            type="url"
+            id="maps_url"
+            name="maps_url"
+            placeholder="https://www.google.com/maps/place/…"
+            required
+            autofocus
+            style="font-size:1rem; padding: 0.7rem 0.9rem;"
+          >
+          <div class="sample-urls">
+            <span class="muted">Try:</span>
+            <button type="button" class="btn-sample" onclick="document.getElementById('maps_url').value='https://maps.app.goo.gl/84vY1gLFocoip6h67'">Gaya - Boutique by the Sea · Koh Samui 🇹🇭</button>
+            <button type="button" class="btn-sample" onclick="document.getElementById('maps_url').value='https://maps.app.goo.gl/qtAadc4T23SA22Wx8'">Breeze Restaurant &amp; Basket Boat · Hoi An 🇻🇳</button>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="fetch-btn" type="submit" class="btn btn-primary">
+            <span class="htmx-indicator spinner"></span>
+            Fetch Place Data →
+          </button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- Step 2 area — waiting until fetch completes -->
+  <div id="step2-area">
+    <section class="wizard-block">
+      <div class="card">
+        <div class="block-label">✂️ Step 2 — Select &amp; Arrange</div>
+        <p class="muted">Waiting for place data… Paste a Google Maps URL above to continue.</p>
       </div>
-    </div>
-    <div class="actions">
-      <button id="fetch-btn" type="submit" class="btn btn-primary">
-        <span class="htmx-indicator spinner"></span>
-        Fetch Place Data →
-      </button>
-    </div>
-  </form>
-</div>
+    </section>
+  </div>
 
-<div id="wizard-blocks"></div>
+  <!-- Step 3 area — waiting until video is generated -->
+  <div id="step3-area">
+    <section class="wizard-block">
+      <div class="card">
+        <div class="block-label">🚀 Step 3 — Preview &amp; Publish</div>
+        <p class="muted">Waiting for video generation… Complete Step 2 to continue.</p>
+      </div>
+    </section>
+  </div>
+
+  <!-- Step 4 area — waiting until published on YouTube -->
+  <div id="step4-area">
+    <section class="wizard-block">
+      <div class="card">
+        <div class="block-label">🎉 Step 4 — Share</div>
+        <p class="muted">Publish your video to YouTube first to unlock sharing.</p>
+      </div>
+    </section>
+  </div>
+
+</div>
 {% endblock %}

@@ -1,10 +1,9 @@
-<div id="loading-generate-group">
 <section id="loading-generate" class="wizard-block"
   {% if not error %}
   hx-get="/tasks/{{ task_id }}/poll/generate"
   hx-trigger="every 1s"
-  hx-swap="outerHTML"
-  hx-target="#loading-generate-group"
+  hx-swap="innerHTML"
+  hx-target="#step3-area"
   {% endif %}>
   <div class="card">
     <div class="block-label">🚀 Step 3 — Publish</div>
@@ -32,4 +31,3 @@
     {% endif %}
   </div>
 </section>
-</div>

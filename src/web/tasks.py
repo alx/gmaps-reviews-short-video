@@ -107,6 +107,7 @@ def _generate_task(
     music_path: str | None,
     music_offset: float,
     maps_url: str,
+    card_config: dict | None = None,
 ) -> None:
     import datetime
     import json
@@ -136,6 +137,12 @@ def _generate_task(
             music_path=music_path,
             maps_url=maps_url,
             music_offset=music_offset,
+            city=place_data.get("city", ""),
+            country=place_data.get("country", ""),
+            country_code=place_data.get("country_code", ""),
+            lat=place_data.get("lat"),
+            lng=place_data.get("lng"),
+            card_config=card_config or {},
         )
     except Exception as exc:
         store.update(task.task_id, status=TaskStatus.ERROR, error=f"Video generation failed: {exc}")
@@ -180,6 +187,7 @@ def _generate_task_gphotos(
     music_path: str | None,
     music_offset: float,
     maps_url: str,
+    card_config: dict | None = None,
 ) -> None:
     import datetime
     import json
@@ -214,6 +222,12 @@ def _generate_task_gphotos(
             music_path=music_path,
             maps_url=maps_url,
             music_offset=music_offset,
+            city=place_data.get("city", ""),
+            country=place_data.get("country", ""),
+            country_code=place_data.get("country_code", ""),
+            lat=place_data.get("lat"),
+            lng=place_data.get("lng"),
+            card_config=card_config or {},
         )
     except Exception as exc:
         store.update(task.task_id, status=TaskStatus.ERROR, error=f"Video generation failed: {exc}")
