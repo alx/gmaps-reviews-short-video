@@ -162,7 +162,22 @@ def select_best_reviews(reviews: list[dict], count: int = 1) -> list[dict]:
     return candidates[:count]
 
 
-def fetch_place_metadata(url: str, api_key: str) -> dict:
+def _load_cache(cache_dir: str, place_id: str) -> dict | None:
+    import json
+    path = Path(cache_dir) / f"{place_id}.json"
+    if path.exists():
+        return json.loads(path.read_text(encoding="utf-8"))
+    return None
+
+
+def _save_cache(cache_dir: str, place_id: str, data: dict) -> None:
+    import json
+    path = Path(cache_dir) / f"{place_id}.json"
+    Path(cache_dir).mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def fetch_place_metadata(url: str, api_key: str, cache_dir: str | None = None) -> dict:
     """Phase 1: Resolve URL → place details without downloading photos.
 
     Returns dict with keys: place_id, business_name, rating, review_count,
@@ -175,12 +190,23 @@ def fetch_place_metadata(url: str, api_key: str) -> dict:
             url = str(resp.url)
 
         place_id = extract_place_id_from_url(url)
+        if place_id and cache_dir:
+            cached = _load_cache(cache_dir, place_id)
+            if cached:
+                print(f"  Cache hit: {place_id}")
+                return cached
+
         if not place_id:
             name = _extract_place_name_from_url(url)
             if not name:
                 raise ValueError("Could not extract place name or ID from URL")
             print(f"  Searching for: {name!r}")
             place_id = search_place_by_name(name, client)
+            if cache_dir:
+                cached = _load_cache(cache_dir, place_id)
+                if cached:
+                    print(f"  Cache hit: {place_id}")
+                    return cached
 
         print(f"  Place ID: {place_id}")
         details = get_place_details(place_id, client)
@@ -198,7 +224,7 @@ def fetch_place_metadata(url: str, api_key: str) -> dict:
         lng = loc.get("longitude")
         address = details.get("formattedAddress", "")
 
-        return {
+        result = {
             "place_id": place_id,
             "business_name": business_name,
             "rating": rating,
@@ -215,6 +241,9 @@ def fetch_place_metadata(url: str, api_key: str) -> dict:
             "lng": lng,
             "address": address,
         }
+        if cache_dir:
+            _save_cache(cache_dir, place_id, result)
+        return result
 
 
 def download_selected_photos(

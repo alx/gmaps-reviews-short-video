@@ -70,8 +70,9 @@ def run_in_thread(fn, *args, **kwargs) -> TaskState:
 
 def _fetch_task(task: TaskState, url: str, api_key: str, session_dir: str) -> None:
     store.update(task.task_id, status=TaskStatus.RUNNING, progress="Fetching place data…", progress_pct=10)
+    cache_dir = str(Path(session_dir).parent.parent / "place_cache")
     try:
-        meta = gmaps.fetch_place_metadata(url, api_key)
+        meta = gmaps.fetch_place_metadata(url, api_key, cache_dir=cache_dir)
     except Exception as exc:
         store.update(task.task_id, status=TaskStatus.ERROR, error=str(exc))
         return
