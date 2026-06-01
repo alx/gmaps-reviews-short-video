@@ -21,17 +21,28 @@
     {% block content %}{% endblock %}
   </main>
   <script>
-  // Auto-scroll to newly appended wizard blocks
   document.body.addEventListener('htmx:afterSwap', function(evt) {
-    const target = evt.detail.target;
+    var target = evt.detail.target;
     if (!target) return;
-    let el = null;
+
+    // Auto-scroll when a new block is appended to wizard-blocks (beforeend swaps).
+    // Re-query lastElementChild inside the timeout — the "load" poll on loading_generate
+    // fires at ~50ms and replaces the node before the 80ms timeout, leaving a detached
+    // reference. Querying at 120ms always gets the current live element.
     if (target.id === 'wizard-blocks') {
-      el = target.lastElementChild;
-    } else if (target.closest && target.closest('#wizard-blocks')) {
-      el = target;
+      setTimeout(function() {
+        var last = target.lastElementChild;
+        if (last) last.scrollIntoView({behavior: 'smooth', block: 'start'});
+      }, 120);
     }
-    if (el) setTimeout(function() { el.scrollIntoView({behavior: 'smooth', block: 'start'}); }, 80);
+
+    // Re-enable the Generate button once video generation finishes (success path).
+    // poll/generate replaces #loading-generate-group with step3_block.html via outerHTML,
+    // so immediately after that swap the ID no longer exists in the DOM.
+    if (target.id === 'loading-generate-group' && !document.getElementById('loading-generate-group')) {
+      var btn = document.getElementById('generate-btn');
+      if (btn) btn.disabled = false;
+    }
   });
   </script>
 </body>

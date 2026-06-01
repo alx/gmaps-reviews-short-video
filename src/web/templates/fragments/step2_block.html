@@ -9,8 +9,8 @@
         hx-post="/step2/submit"
         hx-target="#wizard-blocks"
         hx-swap="beforeend"
-        hx-encoding="multipart/form-data"
-        hx-indicator="#generate-btn">
+        hx-indicator="#generate-btn"
+        hx-on::after-request="document.getElementById('generate-btn').disabled=true">
     <input type="hidden" name="fetch_task_id" value="{{ fetch_task_id }}">
 
     <!-- Reviews -->
@@ -36,9 +36,13 @@
     {% if thumb_urls %}
     <div class="card">
       <h3>Choose &amp; Order Photos</h3>
-      <p class="muted" style="margin-bottom:0.75rem">
+      <p class="muted" style="margin-bottom:0.5rem">
         Drag to reorder. Uncheck to exclude. First 5 selected photos will be used in the slideshow.
       </p>
+      <div class="photo-actions">
+        <button type="button" class="btn btn-outline btn-sm" id="btn-select-all">Select all</button>
+        <button type="button" class="btn btn-outline btn-sm" id="btn-select-none">Select none</button>
+      </div>
       <div class="photo-grid" id="photo-grid">
         {% for url in thumb_urls %}
         <div class="photo-item" data-idx="{{ loop.index0 }}">
@@ -63,21 +67,25 @@
       <h3>Background Music</h3>
       {% if preset_music %}
       <div class="form-group">
-        <label for="preset-music">Preset track</label>
-        <select name="preset_music" id="preset-music" onchange="loadMusicLicense(this.value)">
-          <option value="">— No music —</option>
+        <label>Preset track</label>
+        <div class="music-track-list">
+          <label class="music-track-card">
+            <input type="radio" name="preset_music" value="" checked onchange="loadMusicLicense(this.value)">
+            <span class="music-track-name">— No music —</span>
+          </label>
           {% for name in preset_music %}
-          <option value="{{ name }}">{{ name }}</option>
+          <label class="music-track-card">
+            <input type="radio" name="preset_music" value="{{ name }}" onchange="loadMusicLicense(this.value)">
+            <span class="music-track-name">{{ name | replace('.mp3', '') }}</span>
+            <button type="button" class="btn-play" data-src="/api/mp3/{{ name }}" aria-label="Preview {{ name }}">▶</button>
+          </label>
           {% endfor %}
-        </select>
+        </div>
       </div>
       {% endif %}
-      <div class="form-group">
-        <label for="music-file">Or upload a file (MP3/WAV, max 50 MB)</label>
-        <input type="file" name="music_file" id="music-file" accept="audio/mpeg,audio/wav,audio/*"
-               onchange="if(this.value) document.getElementById('preset-music').value=''">
-        <p class="muted" style="margin-top:0.3rem">Uploaded file takes priority over preset selection.</p>
-      </div>
+      <p class="muted" style="margin-top:0.5rem; font-size:0.85rem;">
+        Want a custom track? <a href="mailto:reviewreel@alexgirard.com?subject=Custom%20MP3%20track%20request%20for%20ReviewReel">Contact us</a>
+      </p>
       <div class="form-group">
         <label for="music-copyright">Music license / attribution</label>
         <input type="text" name="music_copyright" id="music-copyright"
@@ -138,6 +146,55 @@
     });
   }
   grid.addEventListener('change', updateOrder);
+  updateOrder();
+
+  // Rebuild hidden inputs right before HTMX submits the form so that any
+  // missed change/drag events don't leave stale photo_order values.
+  var form = document.getElementById('select-form');
+  if (form) {
+    form.addEventListener('htmx:beforeRequest', updateOrder);
+  }
+
+  document.getElementById('btn-select-all').addEventListener('click', function () {
+    var items = grid.querySelectorAll('.photo-item');
+    items.forEach(function (item) {
+      item.querySelector('input[type="checkbox"]').checked = true;
+    });
+    items.forEach(function (item, i) {
+      setTimeout(function () {
+        item.classList.add('wave-flash');
+        setTimeout(function () { item.classList.remove('wave-flash'); }, 350);
+      }, i * 50);
+    });
+    updateOrder();
+  });
+
+  document.getElementById('btn-select-none').addEventListener('click', function () {
+    grid.querySelectorAll('input[type="checkbox"]').forEach(function (cb) { cb.checked = false; });
+    updateOrder();
+  });
+})();
+
+(function () {
+  var currentAudio = null;
+  document.querySelectorAll('.btn-play').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var src = btn.dataset.src;
+      if (currentAudio && !currentAudio.paused && currentAudio._src === src) {
+        currentAudio.pause(); currentAudio.currentTime = 0;
+        btn.textContent = '▶'; currentAudio = null; return;
+      }
+      if (currentAudio) {
+        currentAudio.pause(); currentAudio.currentTime = 0;
+        document.querySelectorAll('.btn-play').forEach(function (b) { b.textContent = '▶'; });
+      }
+      var audio = new Audio(src);
+      audio._src = src; currentAudio = audio;
+      btn.textContent = '⏹';
+      audio.play().catch(function () { btn.textContent = '▶'; });
+      audio.addEventListener('ended', function () { btn.textContent = '▶'; currentAudio = null; });
+    });
+  });
 })();
 
 function loadMusicLicense(filename) {

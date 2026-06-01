@@ -6,10 +6,12 @@ from pathlib import Path
 from flask import (
     Blueprint,
     Response,
+    abort,
     current_app,
     redirect,
     render_template,
     request,
+    send_from_directory,
     session,
     stream_with_context,
     url_for,
@@ -219,17 +221,21 @@ def poll_fetch(task_id: str):
 @wizard.get("/tasks/<task_id>/poll/generate")
 def poll_generate(task_id: str):
     task = task_mod.store.get(task_id)
+    _title = session.get("title_override", "")
+    _music = session.get("music_copyright", "")
     if not task:
         return render_template(
             "fragments/loading_generate.html",
             task_id=task_id, pct=0,
             progress="Error: task not found", error=True,
+            title="", music_copyright="",
         )
     if task.status == TaskStatus.ERROR:
         return render_template(
             "fragments/loading_generate.html",
             task_id=task_id, pct=0,
             progress=f"Error: {task.error}", error=True,
+            title=_title, music_copyright=_music,
         )
     if task.status != TaskStatus.DONE:
         return render_template(
@@ -237,6 +243,7 @@ def poll_generate(task_id: str):
             task_id=task_id,
             pct=task.progress_pct or 0,
             progress=task.progress or "…",
+            title=_title, music_copyright=_music,
         )
 
     result = task.result
@@ -346,6 +353,8 @@ def step2_submit():
         task_id=gen_task.task_id,
         pct=0,
         progress="Starting…",
+        title=title,
+        music_copyright=music_copyright,
     )
 
 
@@ -363,6 +372,16 @@ def mp3_license(stem: str):
         return {"text": ""}
     content = txt_path.read_text(encoding="utf-8")
     return {"text": _extract_license_text(content)}
+
+
+@wizard.get("/api/mp3/<filename>")
+def serve_mp3(filename: str):
+    if "/" in filename or "\\" in filename or ".." in filename:
+        abort(400)
+    if not filename.lower().endswith(".mp3"):
+        abort(400)
+    mp3_dir = Path(current_app.config.get("PROJECT_ROOT", "")) / "mp3"
+    return send_from_directory(str(mp3_dir), filename)
 
 
 # ---------------------------------------------------------------------------

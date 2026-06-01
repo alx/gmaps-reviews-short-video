@@ -2,35 +2,34 @@
 <section id="loading-generate" class="wizard-block"
   {% if not error %}
   hx-get="/tasks/{{ task_id }}/poll/generate"
-  hx-trigger="load, every 1s"
+  hx-trigger="every 1s"
   hx-swap="outerHTML"
   hx-target="#loading-generate-group"
   {% endif %}>
-  <div class="card loading-card">
-    <div class="block-label">🎬 Generating Video</div>
+  <div class="card">
+    <div class="block-label">🚀 Step 3 — Publish</div>
     <h2>Generating video…</h2>
     <p class="muted" style="margin-bottom:1.25rem">
       Downloading full-resolution photos and rendering the video. This typically takes 2–5 minutes.
     </p>
-    <div class="progress-wrap">
+
+    <div class="progress-wrap" style="margin-bottom:1.25rem">
       <div class="progress-bar-outer">
-        <div class="progress-bar-inner{% if error %} progress-bar-error{% endif %}"
-             style="width: {{ pct }}%"></div>
+        <div class="progress-bar-inner{% if error %} progress-bar-error{% endif %}{% if not error %} progress-bar-animated{% endif %}"
+             style="width:{{ [pct, 3]|max }}%"></div>
       </div>
       <p class="progress-label{% if error %} progress-label-error{% endif %}">{{ progress }}</p>
     </div>
-  </div>
-</section>
 
-<!-- Ghost preview of publish step -->
-<section class="wizard-block ghost-block">
-  <div class="card ghost-card">
-    <div class="block-label">🚀 Step 3 — Publish</div>
-    <p class="ghost-hint">Preview the generated video and publish to YouTube Shorts.</p>
-    <div class="ghost-rows">
-      <div class="ghost-row ghost-wide"></div>
-      <div class="ghost-row ghost-short"></div>
-    </div>
+    {% if title %}
+    <p class="section-label muted">Video title</p>
+    <div class="metadata-preview" style="margin-bottom:0.75rem">{{ title }}</div>
+    {% endif %}
+
+    {% if music_copyright %}
+    <p class="section-label muted">🎵 Music</p>
+    <div class="metadata-preview muted" style="font-size:0.85rem">{{ music_copyright }}</div>
+    {% endif %}
   </div>
 </section>
 </div>

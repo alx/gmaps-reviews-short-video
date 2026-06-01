@@ -420,3 +420,55 @@ hr { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
 .htmx-request .htmx-indicator { display: inline-block; }
 .htmx-request[id="fetch-btn"] { opacity: 0.7; pointer-events: none; }
 button.htmx-request { opacity: 0.7; pointer-events: none; }
+
+/* ── Photo actions (select all/none) ──────── */
+.photo-actions { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
+.btn-sm { padding: 0.25rem 0.65rem; font-size: 0.82rem; }
+
+/* ── Wave-flash animation (Select All) ─────── */
+@keyframes wave-flash {
+  0%   { border-color: var(--border); box-shadow: 0 0 0 0 rgba(79,142,247,0); }
+  35%  { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(79,142,247,0.4); }
+  100% { border-color: var(--border); box-shadow: 0 0 0 0 rgba(79,142,247,0); }
+}
+.photo-item.wave-flash { animation: wave-flash 0.35s ease-out forwards; }
+
+/* ── Music track radio cards ─────────────── */
+.music-track-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.music-track-card {
+  display: flex; align-items: center; gap: 0.75rem;
+  background: var(--surface2); border: 2px solid var(--border);
+  border-radius: 8px; padding: 0.55rem 0.9rem;
+  cursor: pointer; transition: border-color 0.15s;
+}
+.music-track-card:has(input:checked) { border-color: var(--accent); background: rgba(79,142,247,0.08); }
+.music-track-card input[type="radio"] { accent-color: var(--accent); flex-shrink: 0; }
+.music-track-name { flex: 1; font-size: 0.92rem; }
+.btn-play {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 50%;
+  color: var(--text); width: 28px; height: 28px; font-size: 0.7rem;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: border-color 0.15s, color 0.15s;
+}
+.btn-play:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── Optimistic step-3 metadata preview ────── */
+.section-label {
+  font-size: 0.78rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.05em; margin-bottom: 0.3rem;
+}
+.metadata-preview {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 0.5rem 0.75rem; font-size: 0.9rem; line-height: 1.45;
+}
+
+/* ── Animated progress bar shimmer ─────────── */
+@keyframes progress-shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+.progress-bar-animated {
+  background: linear-gradient(90deg, var(--accent) 25%, var(--accent-hover) 50%, var(--accent) 75%);
+  background-size: 200% 100%;
+  animation: progress-shimmer 1.6s ease-in-out infinite;
+}

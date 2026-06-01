@@ -2,7 +2,7 @@
 <section id="loading-fetch" class="wizard-block"
   {% if not error %}
   hx-get="/tasks/{{ task_id }}/poll/fetch"
-  hx-trigger="load, every 1s"
+  hx-trigger="every 1s"
   hx-swap="outerHTML"
   hx-target="#loading-fetch-group"
   {% endif %}>
