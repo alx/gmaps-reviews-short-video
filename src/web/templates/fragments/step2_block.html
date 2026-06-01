@@ -248,11 +248,24 @@
 (function () {
   const grid = document.getElementById('photo-grid');
   if (!grid) return;
+  var _dragging = false;
   new Sortable(grid, {
     animation: 150,
     ghostClass: 'sortable-ghost',
     chosenClass: 'sortable-chosen',
-    onEnd: updateOrder,
+    onStart: function() { _dragging = true; },
+    onEnd: function() { setTimeout(function() { _dragging = false; }, 0); updateOrder(); },
+  });
+
+  // Click on a photo image toggles its checkbox; ignored during drag.
+  grid.addEventListener('click', function(e) {
+    if (_dragging) return;
+    var img = e.target.closest('img');
+    if (!img) return;
+    var item = img.closest('.photo-item');
+    if (!item) return;
+    var cb = item.querySelector('input[type="checkbox"]');
+    if (cb) { cb.checked = !cb.checked; updateOrder(); }
   });
   function updateOrder() {
     const container = document.getElementById('photo-order-inputs');
