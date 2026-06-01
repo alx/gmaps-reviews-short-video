@@ -36,11 +36,13 @@ def create_app(config: dict | None = None) -> Flask:
     from .routes.media import media_bp
     from .routes.youtube_oauth import yt_oauth
     from .routes.gphotos_oauth import gp_oauth
+    from .routes.webhook import webhook
 
     app.register_blueprint(wizard)
     app.register_blueprint(media_bp)
     app.register_blueprint(yt_oauth)
     app.register_blueprint(gp_oauth)
+    app.register_blueprint(webhook)
 
     return app
 
