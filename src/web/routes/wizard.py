@@ -201,8 +201,12 @@ def poll_fetch(task_id: str):
         result.get("website_url", ""),
     )
 
+    _excluded_music = {"artmanzh-battonya-balkan-music-330439.mp3"}
     mp3_dir = Path(current_app.config.get("PROJECT_ROOT", "")) / "mp3"
-    preset_music = sorted(p.name for p in mp3_dir.glob("*.mp3")) if mp3_dir.exists() else []
+    preset_music = (
+        sorted(p.name for p in mp3_dir.glob("*.mp3") if p.name not in _excluded_music)
+        if mp3_dir.exists() else []
+    )
 
     from ..routes.gphotos_oauth import get_or_refresh_gp_credentials
 

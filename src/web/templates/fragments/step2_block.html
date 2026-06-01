@@ -41,8 +41,8 @@
         <button type="button" class="btn btn-outline btn-sm photo-tab-btn active" data-tab="places"
                 onclick="switchPhotoTab('places')">Place Photos</button>
         <button type="button" class="btn btn-outline btn-sm photo-tab-btn" data-tab="gphotos"
-                onclick="switchPhotoTab('gphotos')">
-          {% if gp_authed %}My Google Photos{% else %}Connect Google Photos{% endif %}
+                onclick="switchPhotoTab('gphotos')" disabled title="Coming soon">
+          Connect Google Photos
         </button>
       </div>
 
@@ -62,7 +62,7 @@
             <span class="photo-num">{{ loop.index }}</span>
             <img src="{{ url }}" alt="Photo {{ loop.index }}" loading="lazy">
             <span class="photo-check">
-              <input type="checkbox" name="selected_photos" value="{{ loop.index0 }}" checked title="Include photo {{ loop.index }}">
+              <input type="checkbox" name="selected_photos" value="{{ loop.index0 }}" {% if loop.index0 < 5 %}checked{% endif %} title="Include photo {{ loop.index }}">
             </span>
           </div>
           {% endfor %}
@@ -92,7 +92,10 @@
             Authorize once to browse photos from your personal Google Photos library.
             Your token is stored only for this session.
           </p>
-          <a href="/gphotos/authorize" class="btn btn-primary">Connect Google Photos</a>
+          <button class="btn btn-primary" disabled>Connect Google Photos</button>
+          <p class="muted" style="margin-top:0.5rem; font-size:0.85rem;">
+            This feature is a work in progress — check back soon.
+          </p>
         </div>
         {% endif %}
       </div>
@@ -105,6 +108,9 @@
     <!-- Music -->
     <div class="card">
       <h3>Background Music</h3>
+      <p class="muted" style="margin-top:0.25rem; margin-bottom:0.75rem; font-size:0.85rem;">
+        Want a custom track? <a href="mailto:reviewreel@alexgirard.com?subject=Custom%20MP3%20track%20request%20for%20ReviewReel">Contact us</a>
+      </p>
       {% if preset_music %}
       <div class="form-group">
         <label>Preset track</label>
@@ -123,9 +129,6 @@
         </div>
       </div>
       {% endif %}
-      <p class="muted" style="margin-top:0.5rem; font-size:0.85rem;">
-        Want a custom track? <a href="mailto:reviewreel@alexgirard.com?subject=Custom%20MP3%20track%20request%20for%20ReviewReel">Contact us</a>
-      </p>
       <div class="form-group">
         <label for="music-copyright">Music license / attribution</label>
         <input type="text" name="music_copyright" id="music-copyright"
