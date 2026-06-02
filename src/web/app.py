@@ -49,6 +49,11 @@ def create_app(config: dict | None = None) -> Flask:
     app.config["GPHOTOS_CLIENT_SECRETS"] = os.environ.get("GPHOTOS_CLIENT_SECRETS", "")
     app.config["PROJECT_ROOT"] = str(project_root)
 
+    yt_enabled = os.environ.get("YOUTUBE_PUBLISH_ENABLED", "").lower() in ("1", "true", "yes")
+    app.config["YOUTUBE_PUBLISH_ENABLED"] = yt_enabled
+    if yt_enabled:
+        app.config["YOUTUBE_CLIENT_SECRETS"] = os.environ.get("YOUTUBE_CLIENT_SECRETS", "")
+
     workspace = project_root / "web_workspace"
     workspace.mkdir(exist_ok=True)
     app.config["WORKSPACE_DIR"] = str(workspace)
@@ -57,6 +62,10 @@ def create_app(config: dict | None = None) -> Flask:
 
     if config:
         app.config.update(config)
+
+    @app.context_processor
+    def inject_flags():
+        return {"yt_publish_enabled": app.config.get("YOUTUBE_PUBLISH_ENABLED", False)}
 
     from .routes.wizard import wizard
     from .routes.media import media_bp
@@ -67,6 +76,10 @@ def create_app(config: dict | None = None) -> Flask:
     app.register_blueprint(media_bp)
     app.register_blueprint(gp_oauth)
     app.register_blueprint(webhook)
+
+    if yt_enabled:
+        from .routes.youtube_oauth import yt_oauth
+        app.register_blueprint(yt_oauth)
 
     return app
 
