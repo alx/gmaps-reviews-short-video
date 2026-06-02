@@ -1,5 +1,6 @@
 import os
-from flask import Blueprint, send_from_directory, abort, current_app
+import re
+from flask import Blueprint, send_from_directory, abort, current_app, request
 
 media_bp = Blueprint("media", __name__, url_prefix="/media")
 
@@ -12,4 +13,8 @@ def serve_media(filename: str):
         abort(403)
     directory = os.path.dirname(full_path)
     basename = os.path.basename(full_path)
+    dl = request.args.get("dl", "").strip()
+    if dl:
+        dl = re.sub(r"[^a-zA-Z0-9_.\-]", "_", dl)
+        return send_from_directory(directory, basename, as_attachment=True, download_name=dl)
     return send_from_directory(directory, basename)
