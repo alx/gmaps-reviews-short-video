@@ -3,6 +3,7 @@ import datetime
 import logging
 import os
 import random
+import subprocess
 import textwrap
 import time as _time
 
@@ -526,6 +527,41 @@ def make_header(business_name: str, rating: float, font_bold: str) -> list:
     return [bg_clip, star_clip, name_clip]
 
 
+def _embed_cover_image(output_path: str, cover_frame) -> None:
+    """Mux a cover/thumbnail image into the MP4 so platforms show a non-black preview."""
+    if cover_frame is None:
+        return
+    tmp_jpg = output_path + ".cover.jpg"
+    tmp_mp4 = output_path + ".tmp.mp4"
+    try:
+        img = Image.fromarray(cover_frame)
+        img.save(tmp_jpg, "JPEG", quality=85)
+        result = subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-i", output_path,
+                "-i", tmp_jpg,
+                "-map", "0",
+                "-map", "1",
+                "-c", "copy",
+                "-c:v:1", "mjpeg",
+                "-disposition:v:1", "attached_pic",
+                tmp_mp4,
+            ],
+            capture_output=True,
+        )
+        if result.returncode == 0:
+            os.replace(tmp_mp4, output_path)
+        else:
+            logger.warning("cover image embed failed: %s", result.stderr.decode(errors="replace"))
+    except Exception as exc:
+        logger.warning("cover image embed skipped: %s", exc)
+    finally:
+        for p in (tmp_jpg, tmp_mp4):
+            with _contextlib.suppress(FileNotFoundError):
+                os.remove(p)
+
+
 def build_video(
     business_name: str,
     rating: float,
@@ -607,13 +643,18 @@ def build_video(
             photo_clips.append(clip)
 
     # Title card — full-screen intro
+    cover_frame = None
     title_clips: list = []
     if include_intro:
         with _timer("title_card"):
+            tc_base = make_title_card(
+                business_name, rating, font_bold, font_reg,
+                photo_path=photos[0],
+                city=city, country=country, country_code=country_code,
+            )
+            cover_frame = tc_base.get_frame(0)
             tc = (
-                make_title_card(business_name, rating, font_bold, font_reg,
-                                photo_path=photos[0],
-                                city=city, country=country, country_code=country_code)
+                tc_base
                 .with_duration(title_dur)
                 .with_effects([vfx.FadeOut(CROSSFADE)])
                 .with_start(0)
@@ -729,6 +770,8 @@ def build_video(
             logger=None,
             ffmpeg_params=metadata_params,
         )
+    with _timer("cover_embed"):
+        _embed_cover_image(output_path, cover_frame)
     logger.info("saved: %s", output_path)
 
     if _timings:
