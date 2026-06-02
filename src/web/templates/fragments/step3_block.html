@@ -39,7 +39,7 @@
           {% endif %}
         </div>
         {% else %}
-        <a href="{{ video_url }}" download class="btn btn-primary" style="font-size:1rem; padding:0.7rem 1.8rem; display:inline-block; margin-bottom:1.25rem;">
+        <a href="{{ video_url }}" download="{{ download_filename }}" class="btn btn-primary" style="font-size:1rem; padding:0.7rem 1.8rem; display:inline-block; margin-bottom:1.25rem;">
           ⬇ Download MP4
         </a>
 
@@ -61,7 +61,7 @@
   <div class="actions">
     <a href="/" class="btn btn-outline">← Start Over</a>
     {% if not yt_publish_enabled %}
-    <a href="{{ video_url }}" download class="btn btn-outline">⬇ Download MP4</a>
+    <a href="{{ video_url }}" download="{{ download_filename }}" class="btn btn-outline">⬇ Download MP4</a>
     {% endif %}
   </div>
 </section>

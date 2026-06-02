@@ -136,7 +136,7 @@ textarea { resize: vertical; min-height: 90px; }
   transition: background 0.15s, opacity 0.15s;
 }
 .btn-primary { background: var(--accent); color: #fff; }
-.btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:hover { background: var(--accent-hover); color: #fff; }
 .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
 .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
 .btn-danger { background: var(--danger); color: #fff; }

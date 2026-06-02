@@ -1,5 +1,7 @@
+import datetime
 import json
 import os
+import re
 import time
 from pathlib import Path
 
@@ -269,6 +271,17 @@ def poll_generate(task_id: str):
     video_rel = os.path.relpath(result["video_path"], workspace)
     video_url = url_for("media.serve_media", filename=video_rel)
 
+    meta = result.get("metadata", {})
+    business_name = meta.get("business_name", "video")
+    generated_at = meta.get("generated_at", "")
+    try:
+        dt = datetime.datetime.fromisoformat(generated_at)
+        date_str = dt.strftime("%d%m%Y")
+    except (ValueError, TypeError):
+        date_str = datetime.datetime.now().strftime("%d%m%Y")
+    safe_name = re.sub(r"[^a-zA-Z0-9]+", "_", business_name).strip("_")
+    download_filename = f"{safe_name}_{date_str}.mp4"
+
     yt_authed = False
     if current_app.config.get("YOUTUBE_PUBLISH_ENABLED"):
         from ..routes.youtube_oauth import get_or_refresh_credentials
@@ -277,6 +290,7 @@ def poll_generate(task_id: str):
     return render_template(
         "fragments/step3_block.html",
         video_url=video_url,
+        download_filename=download_filename,
         title=session.get("title_override", ""),
         yt_authed=yt_authed,
     )
