@@ -649,3 +649,15 @@ button.htmx-request { opacity: 0.7; pointer-events: none; }
   font-weight: 600;
   color: var(--accent);
 }
+
+.site-footer {
+  text-align: center;
+  padding: 1.25rem 1rem;
+  margin-top: 2rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.footer-commit { font-family: monospace; color: var(--text-muted); }
+.footer-commit:hover { color: var(--accent); text-decoration: none; }
+.footer-sep { margin: 0 0.4rem; }
+.footer-date { color: var(--text-muted); }

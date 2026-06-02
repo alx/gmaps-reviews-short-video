@@ -1,11 +1,31 @@
+import datetime
 import logging
 import logging.handlers
 import os
+import subprocess
 from pathlib import Path
 from urllib.parse import quote_plus
 
 from dotenv import load_dotenv
 from flask import Flask
+
+GITHUB_REPO = "alx/gmaps-reviews-short-video"
+
+
+def _read_commit_info(project_root: Path) -> tuple[str, str]:
+    """Return (short_hash, human_date) for the current HEAD commit."""
+    try:
+        out = subprocess.check_output(
+            ["git", "log", "-1", "--format=%H %ci"],
+            cwd=str(project_root),
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+        full_hash, date_part = out.split(" ", 1)
+        dt = datetime.datetime.strptime(date_part[:19], "%Y-%m-%d %H:%M:%S")
+        return full_hash, dt.strftime("%-d %b %Y")
+    except Exception:
+        return "", ""
 
 
 def _configure_logging(project_root: Path) -> None:
@@ -63,9 +83,17 @@ def create_app(config: dict | None = None) -> Flask:
     if config:
         app.config.update(config)
 
+    commit_hash, commit_date = _read_commit_info(project_root)
+
     @app.context_processor
     def inject_flags():
-        return {"yt_publish_enabled": app.config.get("YOUTUBE_PUBLISH_ENABLED", False)}
+        return {
+            "yt_publish_enabled": app.config.get("YOUTUBE_PUBLISH_ENABLED", False),
+            "commit_hash": commit_hash,
+            "commit_short": commit_hash[:7] if commit_hash else "",
+            "commit_date": commit_date,
+            "github_commit_url": f"https://github.com/{GITHUB_REPO}/commit/{commit_hash}" if commit_hash else "",
+        }
 
     from .routes.wizard import wizard
     from .routes.media import media_bp
