@@ -350,8 +350,8 @@ def make_outro_card(
 
         _draw_mixed_text(frame, draw, label_y, "📍 Google Maps ⬆",
                          label_font, emoji_fp, (200, 200, 200, 255), LABEL_LINE_H, W)
-        _draw_mixed_text(frame, draw, cta_y, "📤 Share this QR Code",
-                         cta_font, emoji_fp, (150, 150, 150, 255), CTA_LINE_H, W)
+        # _draw_mixed_text(frame, draw, cta_y, "📤 Share this QR Code",
+        #                  cta_font, emoji_fp, (150, 150, 150, 255), CTA_LINE_H, W)
 
     alpha = np.array(frame.split()[3]).astype(float) / 255.0
     rgb = np.array(frame.convert("RGB"))
