@@ -117,6 +117,8 @@ def _generate_task(
     music_offset: float,
     maps_url: str,
     card_config: dict | None = None,
+    structure: str = "default",
+    reviews_list: list[dict] | None = None,
 ) -> None:
     import datetime
     import json
@@ -135,6 +137,8 @@ def _generate_task(
         store.update(task.task_id, status=TaskStatus.ERROR, error=f"Photo download failed: {exc}")
         return
 
+    reviews_to_use = reviews_list if reviews_list is not None else ([selected_review] if selected_review else [])
+
     logger.info("[task:%s] photos downloaded: %d files", task.task_id[:8], len(photo_paths))
     store.update(task.task_id, progress="Generating video…", progress_pct=40)
     output_path = str(Path(session_dir) / "video.mp4")
@@ -143,7 +147,7 @@ def _generate_task(
             business_name=place_data["business_name"],
             rating=place_data["rating"],
             photo_paths=photo_paths,
-            reviews=[selected_review] if selected_review else [],
+            reviews=reviews_to_use,
             output_path=output_path,
             website_url=place_data.get("website_url", ""),
             music_path=music_path,
@@ -155,6 +159,8 @@ def _generate_task(
             lat=place_data.get("lat"),
             lng=place_data.get("lng"),
             card_config=card_config or {},
+            structure=structure,
+            review_count=place_data.get("review_count", 0),
         )
     except Exception as exc:
         logger.exception("[task:%s] video generation failed: %s", task.task_id[:8], exc)
@@ -203,6 +209,8 @@ def _generate_task_gphotos(
     music_offset: float,
     maps_url: str,
     card_config: dict | None = None,
+    structure: str = "default",
+    reviews_list: list[dict] | None = None,
 ) -> None:
     import datetime
     import json
@@ -226,6 +234,8 @@ def _generate_task_gphotos(
             store.update(task.task_id, status=TaskStatus.ERROR, error=f"Photo download failed: {exc}")
             return
 
+    reviews_to_use = reviews_list if reviews_list is not None else ([selected_review] if selected_review else [])
+
     logger.info("[task:%s] photos downloaded: %d files", task.task_id[:8], len(photo_paths))
     store.update(task.task_id, progress="Generating video…", progress_pct=40)
     output_path = str(Path(session_dir) / "video.mp4")
@@ -234,7 +244,7 @@ def _generate_task_gphotos(
             business_name=place_data["business_name"],
             rating=place_data["rating"],
             photo_paths=photo_paths,
-            reviews=[selected_review] if selected_review else [],
+            reviews=reviews_to_use,
             output_path=output_path,
             website_url=place_data.get("website_url", ""),
             music_path=music_path,
@@ -246,6 +256,8 @@ def _generate_task_gphotos(
             lat=place_data.get("lat"),
             lng=place_data.get("lng"),
             card_config=card_config or {},
+            structure=structure,
+            review_count=place_data.get("review_count", 0),
         )
     except Exception as exc:
         logger.exception("[task:%s] video generation failed: %s", task.task_id[:8], exc)

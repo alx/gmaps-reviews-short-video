@@ -15,6 +15,7 @@ dependencies = [
     "flask>=3.0",
     "werkzeug>=3.0",
     "gunicorn>=23.0",
+    "timezonefinder>=6.0",
 ]
 
 [project.scripts]

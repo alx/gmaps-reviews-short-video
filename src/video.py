@@ -47,6 +47,14 @@ CARD_H      = CARD_Y_BOT - CARD_Y_TOP   # 1440
 CARD_W      = W - SAFE_RIGHT             # 920
 CARD_X      = (W - CARD_W) // 2         # 80
 
+# 15s Scénographie structure — cross-platform safe zones (TikTok + Reels)
+_S15_SAFE_TOP  = 250
+_S15_SAFE_BOT  = 420
+_S15_CARD_Y_TOP = _S15_SAFE_TOP           # 250
+_S15_CARD_Y_BOT = H - _S15_SAFE_BOT       # 1500
+_S15_CARD_W    = W - 80                    # 1000 (40 px each side)
+_S15_CARD_X    = (W - _S15_CARD_W) // 2   # 40
+
 
 def find_font() -> str:
     candidates = [
@@ -261,6 +269,10 @@ def make_review_card(review: dict, font_path: str, font_bold_path: str) -> tuple
     return np.array(card.convert("RGB")), alpha, actual_h
 
 
+def _render_qr(url: str, size: int) -> Image.Image:
+    return qrcode.make(url).convert("RGBA").resize((size, size), Image.Resampling.LANCZOS)
+
+
 def make_outro_card(
     business_name: str, website_url: str, font_bold: str, font_reg: str,
     maps_url: str = "",
@@ -332,9 +344,7 @@ def make_outro_card(
                              loc_font, emoji_fp, (200, 200, 200, 255), LOC_LINE_H, W)
 
     if has_qr:
-        qr_img = qrcode.make(maps_url).convert("RGBA").resize(
-            (QR_SIZE, QR_SIZE), Image.Resampling.LANCZOS
-        )
+        qr_img = _render_qr(maps_url, QR_SIZE)
         qr_x = (W - QR_SIZE) // 2
         qr_y = text_top + text_h + QR_PAD
         frame.paste(qr_img, (qr_x, qr_y), qr_img)
@@ -562,6 +572,507 @@ def _embed_cover_image(output_path: str, cover_frame) -> None:
                 os.remove(p)
 
 
+def make_hook_card(
+    review: dict,
+    rating: float,
+    font_bold: str,
+    font_reg: str,
+    variant: str = "stars",
+) -> ImageClip:
+    """Hook segment (0–2s): large star rating OR impactful quote from the review."""
+    frame = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    bg = Image.new("RGBA", (W, H), (15, 15, 15, 220))
+    frame.paste(bg)
+    draw = ImageDraw.Draw(frame)
+
+    safe_h = _S15_CARD_Y_BOT - _S15_CARD_Y_TOP  # 1250
+
+    if variant == "stars":
+        try:
+            star_font = ImageFont.truetype(font_bold, 110)
+        except Exception:
+            star_font = ImageFont.load_default()
+        try:
+            text_font = ImageFont.truetype(font_reg, 72)
+        except Exception:
+            text_font = ImageFont.load_default()
+
+        stars = "★" * int(rating) + "☆" * (5 - int(rating))
+        words = review.get("text", "").split()
+        quote = " ".join(words[:12]) + ("…" if len(words) > 12 else "")
+        quote_lines = textwrap.wrap(quote, width=24)
+
+        star_h = 130
+        text_line_h = 90
+        total_content_h = star_h + 24 + len(quote_lines) * text_line_h
+        y = _S15_CARD_Y_TOP + (safe_h - total_content_h) // 2
+
+        star_bbox = draw.textbbox((0, 0), stars, font=star_font)
+        draw.text(((W - (star_bbox[2] - star_bbox[0])) // 2, y), stars,
+                  font=star_font, fill=(255, 210, 50, 255))
+        y += star_h + 24
+
+        for line in quote_lines:
+            lb = draw.textbbox((0, 0), line, font=text_font)
+            draw.text(((W - (lb[2] - lb[0])) // 2, y), line, font=text_font,
+                      fill=(240, 240, 240, 255), stroke_width=2, stroke_fill=(0, 0, 0, 255))
+            y += text_line_h
+
+    else:  # variant == "quote"
+        try:
+            quote_font = ImageFont.truetype(font_bold, 80)
+        except Exception:
+            quote_font = ImageFont.load_default()
+        try:
+            author_font = ImageFont.truetype(font_reg, 52)
+        except Exception:
+            author_font = ImageFont.load_default()
+
+        words = review.get("text", "").split()
+        body = " ".join(words[:12]) + ("…" if len(words) > 12 else "")
+        quote_lines = textwrap.wrap(f"\"{body}\"", width=22)
+        author = review.get("author", "Customer")
+
+        text_line_h = 100
+        author_h = 70
+        total_content_h = len(quote_lines) * text_line_h + 24 + author_h
+        y = _S15_CARD_Y_TOP + (safe_h - total_content_h) // 2
+
+        for line in quote_lines:
+            lb = draw.textbbox((0, 0), line, font=quote_font)
+            draw.text(((W - (lb[2] - lb[0])) // 2, y), line, font=quote_font,
+                      fill=(240, 240, 240, 255), stroke_width=2, stroke_fill=(0, 0, 0, 255))
+            y += text_line_h
+
+        y += 24
+        author_text = f"— {author}"
+        ab = draw.textbbox((0, 0), author_text, font=author_font)
+        draw.text(((W - (ab[2] - ab[0])) // 2, y), author_text,
+                  font=author_font, fill=(200, 200, 200, 255))
+
+    alpha = np.array(frame.split()[3]).astype(float) / 255.0
+    rgb = np.array(frame.convert("RGB"))
+    return ImageClip(rgb).with_mask(ImageClip(alpha, is_mask=True))
+
+
+def make_body_card(
+    reviews: list[dict],
+    font_bold: str,
+    font_reg: str,
+    n_reviews: int = 1,
+) -> ImageClip:
+    """Body segment (2–10s): 1–2 reviews in large readable text on a dark scrim."""
+    frame = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    bg = Image.new("RGBA", (W, H), (15, 15, 15, 220))
+    frame.paste(bg)
+    draw = ImageDraw.Draw(frame)
+
+    pad = 40
+    header_size = 52
+    text_size = 68
+    header_line_h = 66
+    text_line_h = 84
+    divider_gap = 20
+
+    try:
+        hfont = ImageFont.truetype(font_bold, header_size)
+    except Exception:
+        hfont = ImageFont.load_default()
+    try:
+        rfont = ImageFont.truetype(font_reg, text_size)
+    except Exception:
+        rfont = ImageFont.load_default()
+
+    safe_h = _S15_CARD_Y_BOT - _S15_CARD_Y_TOP
+
+    def render_block(review: dict, y_start: int, max_h: int) -> None:
+        y = y_start
+        text = truncate_review(review["text"], limit=90)
+        lines = textwrap.wrap(text, width=28)
+        stars = "★" * int(review["rating"]) + "☆" * (5 - int(review["rating"]))
+        author = review.get("author", "Customer")
+        header = f"{stars}  {author}"
+        draw.text((pad, y), header, font=hfont, fill=(255, 210, 50, 255),
+                  stroke_width=2, stroke_fill=(0, 0, 0, 255))
+        y += header_line_h + divider_gap
+        draw.line([(pad, y), (W - pad, y)], fill=(255, 255, 255, 60), width=1)
+        y += divider_gap
+        for line in lines:
+            if y + text_line_h > y_start + max_h:
+                break
+            draw.text((pad, y), line, font=rfont, fill=(240, 240, 240, 255),
+                      stroke_width=2, stroke_fill=(0, 0, 0, 255))
+            y += text_line_h
+
+    count = min(max(n_reviews, 1), len(reviews)) if reviews else 1
+
+    if count == 1:
+        review = reviews[0] if reviews else {"text": "", "rating": 5, "author": "Customer"}
+        text = truncate_review(review["text"], limit=90)
+        lines = textwrap.wrap(text, width=28)
+        content_h = header_line_h + divider_gap * 2 + len(lines) * text_line_h
+        y_start = _S15_CARD_Y_TOP + max((safe_h - content_h) // 2, 20)
+        render_block(review, y_start, safe_h)
+    else:
+        half_h = safe_h // 2 - 40
+        render_block(reviews[0], _S15_CARD_Y_TOP + 20, half_h)
+        mid_y = _S15_CARD_Y_TOP + safe_h // 2
+        draw.line([(40, mid_y), (W - 40, mid_y)], fill=(255, 255, 255, 100), width=2)
+        render_block(reviews[1], mid_y + 20, half_h)
+
+    alpha = np.array(frame.split()[3]).astype(float) / 255.0
+    rgb = np.array(frame.convert("RGB"))
+    return ImageClip(rgb).with_mask(ImageClip(alpha, is_mask=True))
+
+
+def make_proof_card(
+    business_name: str,
+    rating: float,
+    review_count: int,
+    font_bold: str,
+    font_reg: str,
+) -> ImageClip:
+    """Proof segment (10–13s): business name + aggregate rating + review count."""
+    frame = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    bg = Image.new("RGBA", (W, H), (10, 10, 15, 220))
+    frame.paste(bg)
+    draw = ImageDraw.Draw(frame)
+
+    try:
+        name_font = ImageFont.truetype(font_bold, 72)
+    except Exception:
+        name_font = ImageFont.load_default()
+    try:
+        stats_font = ImageFont.truetype(font_bold, 64)
+    except Exception:
+        stats_font = ImageFont.load_default()
+    try:
+        tag_font = ImageFont.truetype(font_reg, 44)
+    except Exception:
+        tag_font = ImageFont.load_default()
+
+    name_lines = textwrap.wrap(business_name, width=22) or [business_name]
+    name_line_h = 88
+    stats_text = f"★ {rating:.1f}  ·  {review_count} avis"
+    tagline = "Vos clients parlent pour vous"
+
+    total_h = len(name_lines) * name_line_h + 24 + 80 + 24 + 60
+    y = (H - total_h) // 2
+
+    for line in name_lines:
+        bbox = draw.textbbox((0, 0), line, font=name_font)
+        x = (W - (bbox[2] - bbox[0])) // 2
+        draw.text((x, y), line, font=name_font, fill=(255, 255, 255, 255))
+        y += name_line_h
+
+    y += 24
+    stats_bbox = draw.textbbox((0, 0), stats_text, font=stats_font)
+    x = (W - (stats_bbox[2] - stats_bbox[0])) // 2
+    draw.text((x, y), stats_text, font=stats_font, fill=(255, 210, 50, 255))
+    y += 80 + 24
+
+    tag_bbox = draw.textbbox((0, 0), tagline, font=tag_font)
+    x = (W - (tag_bbox[2] - tag_bbox[0])) // 2
+    draw.text((x, y), tagline, font=tag_font, fill=(170, 170, 170, 255))
+
+    alpha = np.array(frame.split()[3]).astype(float) / 255.0
+    rgb = np.array(frame.convert("RGB"))
+    return ImageClip(rgb).with_mask(ImageClip(alpha, is_mask=True))
+
+
+def make_cta_card(
+    cta_text: str,
+    maps_url: str,
+    font_bold: str,
+    font_reg: str,
+    social_handle: str = "",
+) -> ImageClip:
+    """CTA segment (13–15s): action text + QR code + optional social handle."""
+    frame = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    bg = Image.new("RGBA", (W, H), (10, 10, 15, 220))
+    frame.paste(bg)
+    draw = ImageDraw.Draw(frame)
+
+    try:
+        cta_font = ImageFont.truetype(font_bold, 80)
+    except Exception:
+        cta_font = ImageFont.load_default()
+    try:
+        sub_font = ImageFont.truetype(font_reg, 48)
+    except Exception:
+        sub_font = ImageFont.load_default()
+    try:
+        handle_font = ImageFont.truetype(font_reg, 44)
+    except Exception:
+        handle_font = ImageFont.load_default()
+
+    QR_SIZE = 480
+    has_qr = bool(maps_url)
+    safe_h = _S15_CARD_Y_BOT - _S15_CARD_Y_TOP
+
+    cta_line_h = 96
+    sub_line_h = 60
+    qr_gap = 32
+    handle_h = 56 if social_handle else 0
+    content_h = (
+        cta_line_h + 16 + sub_line_h
+        + (qr_gap + QR_SIZE + (16 + handle_h if social_handle else 0) if has_qr else 0)
+    )
+    y = _S15_CARD_Y_TOP + (safe_h - content_h) // 2
+
+    cta_bbox = draw.textbbox((0, 0), cta_text, font=cta_font)
+    x = (W - (cta_bbox[2] - cta_bbox[0])) // 2
+    draw.text((x, y), cta_text, font=cta_font, fill=(255, 255, 255, 255))
+    y += cta_line_h + 16
+
+    sub_text = "Scannez pour réserver" if has_qr else "Découvrez-nous"
+    sub_bbox = draw.textbbox((0, 0), sub_text, font=sub_font)
+    x = (W - (sub_bbox[2] - sub_bbox[0])) // 2
+    draw.text((x, y), sub_text, font=sub_font, fill=(170, 170, 170, 255))
+    y += sub_line_h
+
+    if has_qr:
+        y += qr_gap
+        qr_img = _render_qr(maps_url, QR_SIZE)
+        frame.paste(qr_img, ((W - QR_SIZE) // 2, y), qr_img)
+        y += QR_SIZE
+        if social_handle:
+            y += 16
+            hb = draw.textbbox((0, 0), social_handle, font=handle_font)
+            x = (W - (hb[2] - hb[0])) // 2
+            draw.text((x, y), social_handle, font=handle_font, fill=(170, 170, 170, 255))
+
+    alpha = np.array(frame.split()[3]).astype(float) / 255.0
+    rgb = np.array(frame.convert("RGB"))
+    return ImageClip(rgb).with_mask(ImageClip(alpha, is_mask=True))
+
+
+def _make_body_segment(
+    reviews: list[dict],
+    font_bold: str,
+    font_reg: str,
+    start: float,
+    total_dur: float,
+    n_reviews: int,
+) -> list:
+    """Build the body overlay clips: 1 card or a carousel of n_reviews cards."""
+    count = min(max(n_reviews, 1), max(len(reviews), 1))
+    if count <= 1 or len(reviews) < 2:
+        clip = (
+            make_body_card(reviews[:1] if reviews else [], font_bold, font_reg, n_reviews=1)
+            .with_duration(total_dur)
+            .with_effects([vfx.CrossFadeIn(CROSSFADE)])
+            .with_start(start)
+            .with_position("center")
+        )
+        return [clip]
+
+    per_dur = total_dur / count
+    clips = []
+    for i in range(count):
+        card = make_body_card([reviews[i]], font_bold, font_reg, n_reviews=1)
+        clip = card.with_duration(per_dur)
+        if i > 0:
+            clip = clip.with_effects([vfx.CrossFadeIn(CROSSFADE)])
+        clip = clip.with_start(start + i * (per_dur - CROSSFADE)).with_position("center")
+        clips.append(clip)
+    return clips
+
+
+def _build_15s(
+    business_name: str,
+    rating: float,
+    review_count: int,
+    photo_paths: list[str],
+    reviews: list[dict],
+    output_path: str,
+    fps: int,
+    website_url: str,
+    music_path: str | None,
+    maps_url: str,
+    music_offset: float,
+    city: str,
+    country: str,
+    country_code: str,
+    lat: float | None,
+    lng: float | None,
+    card_config: dict,
+    font_bold: str,
+    font_reg: str,
+) -> None:
+    ch = card_config.get("hook",  {})
+    cb = card_config.get("body",  {})
+    cp = card_config.get("proof", {})
+    cc = card_config.get("cta",   {})
+
+    include_hook  = bool(ch.get("enabled", True))
+    include_body  = bool(cb.get("enabled", True))
+    include_proof = bool(cp.get("enabled", True))
+    include_cta   = bool(cc.get("enabled", True))
+
+    hook_dur       = float(ch.get("duration", 2.0))
+    body_dur       = float(cb.get("duration", 8.0))
+    proof_dur      = float(cp.get("duration", 3.0))
+    cta_dur        = float(cc.get("duration", 2.0))
+    hook_variant   = ch.get("variant", "stars")
+    n_reviews_body = int(cb.get("n_reviews", 1))
+    cta_text       = cc.get("cta_text", "Réservez")
+    social_handle  = cc.get("social_handle", "")
+    show_qr        = bool(cc.get("show_qr", True))
+
+    active_durs = []
+    if include_hook:  active_durs.append(hook_dur)
+    if include_body:  active_durs.append(body_dur)
+    if include_proof: active_durs.append(proof_dur)
+    if include_cta:   active_durs.append(cta_dur)
+    n_transitions = max(0, len(active_durs) - 1)
+    effective_total = max(sum(active_durs) - n_transitions * CROSSFADE, FADE * 2 + 1.0)
+
+    n = min(len(photo_paths), 5)
+    photos = random.sample(photo_paths, n)
+    clip_dur = (effective_total + (n - 1) * CROSSFADE) / n
+
+    photo_clips = []
+    with _timer("ken_burns_clips"):
+        for i, path in enumerate(photos):
+            with _timer(f"ken_burns_clip_{i}"):
+                clip = make_ken_burns_clip(path, clip_dur)
+            if i > 0:
+                clip = clip.with_effects([vfx.CrossFadeIn(CROSSFADE)])
+            clip = clip.with_start(i * (clip_dur - CROSSFADE))
+            photo_clips.append(clip)
+
+    # Compute staggered segment start times
+    cursor = 0.0
+    hook_start = cursor
+    if include_hook:  cursor += hook_dur - CROSSFADE
+    body_start = cursor
+    if include_body:  cursor += body_dur - CROSSFADE
+    proof_start = cursor
+    if include_proof: cursor += proof_dur - CROSSFADE
+    cta_start = cursor
+
+    cover_frame = None
+
+    hook_clips: list = []
+    if include_hook and reviews:
+        with _timer("hook_card"):
+            hc = make_hook_card(reviews[0], rating, font_bold, font_reg, variant=hook_variant)
+            cover_frame = hc.get_frame(0)
+            hc = (
+                hc
+                .with_duration(hook_dur)
+                .with_effects([vfx.FadeOut(CROSSFADE)])
+                .with_start(hook_start)
+                .with_position("center")
+            )
+        hook_clips.append(hc)
+
+    body_clips_list: list = []
+    if include_body and reviews:
+        with _timer("body_segment"):
+            body_clips_list = _make_body_segment(
+                reviews, font_bold, font_reg, body_start, body_dur, n_reviews_body,
+            )
+
+    proof_clips: list = []
+    if include_proof:
+        with _timer("proof_card"):
+            pc = make_proof_card(business_name, rating, review_count, font_bold, font_reg)
+            if cover_frame is None:
+                cover_frame = pc.get_frame(0)
+            pc = (
+                pc
+                .with_duration(proof_dur)
+                .with_effects([vfx.CrossFadeIn(CROSSFADE)])
+                .with_start(proof_start)
+                .with_position("center")
+            )
+        proof_clips.append(pc)
+
+    cta_clips: list = []
+    if include_cta:
+        _maps_url_arg = maps_url if show_qr else ""
+        with _timer("cta_card"):
+            ctac = make_cta_card(cta_text, _maps_url_arg, font_bold, font_reg, social_handle)
+            if cover_frame is None:
+                cover_frame = ctac.get_frame(0)
+            ctac = (
+                ctac
+                .with_duration(cta_dur)
+                .with_effects([vfx.CrossFadeIn(CROSSFADE)])
+                .with_start(cta_start)
+                .with_position("center")
+            )
+        cta_clips.append(ctac)
+
+    all_clips = photo_clips + body_clips_list + proof_clips + hook_clips + cta_clips
+    with _timer("composite"):
+        final = (
+            CompositeVideoClip(all_clips, size=(W, H))
+            .with_duration(effective_total)
+            .with_effects([vfx.FadeIn(FADE), vfx.FadeOut(FADE)])
+        )
+
+    if music_path:
+        with _timer("audio_load"):
+            audio = (
+                AudioFileClip(music_path)
+                .subclipped(music_offset, music_offset + effective_total)
+                .with_effects([afx.AudioFadeIn(FADE), afx.AudioFadeOut(FADE)])
+            )
+        final = final.with_audio(audio)
+
+    comment = f"Website: {website_url}" if website_url else "Generated by gmaps-reviews-short-video"
+    metadata_params = [
+        "-metadata", f"title={business_name}",
+        "-metadata", "artist=gmaps-reviews-short-video",
+        "-metadata", f"comment={comment}",
+        "-metadata", f"year={datetime.date.today().year}",
+    ]
+    if lat is not None and lng is not None:
+        location_str = f"{lat:+.6f}{lng:+.6f}/"
+        metadata_params += ["-metadata", f"location={location_str}"]
+
+    with _timer("prerender_frames"):
+        n_frames = int(effective_total * fps)
+        frame_times = np.linspace(0, effective_total - 1 / fps, n_frames)
+        frames = [final.get_frame(t) for t in frame_times]
+        prerendered = VideoClip(
+            lambda t: frames[min(int(t * fps), n_frames - 1)],
+            duration=effective_total,
+        )
+        if music_path:
+            prerendered = prerendered.with_audio(final.audio)
+
+    with _timer("ffmpeg_encode"):
+        prerendered.write_videofile(
+            output_path,
+            fps=fps,
+            codec="libx264",
+            audio=music_path is not None,
+            audio_codec="aac",
+            preset="medium",
+            threads=4,
+            logger=None,
+            ffmpeg_params=metadata_params,
+        )
+    with _timer("cover_embed"):
+        _embed_cover_image(output_path, cover_frame)
+    logger.info("saved: %s", output_path)
+
+    if _timings:
+        total_t = sum(t for _, t in _timings)
+        lines = ["── Video generation timing ──────────────────"]
+        for label, t in _timings:
+            bar = "█" * int(t / total_t * 30) if total_t > 0 else ""
+            lines.append(f"  {label:<26} {t:6.2f}s  {bar}")
+        lines.append(f"  {'TOTAL':<26} {total_t:6.2f}s")
+        lines.append("─────────────────────────────────────────────")
+        logger.info("\n".join(lines))
+        _timings.clear()
+
+
 def build_video(
     business_name: str,
     rating: float,
@@ -579,6 +1090,8 @@ def build_video(
     lat: float | None = None,
     lng: float | None = None,
     card_config: dict | None = None,
+    structure: str = "default",
+    review_count: int = 0,
 ) -> None:
     with _timer("fonts"):
         font_bold = find_font()
@@ -586,6 +1099,30 @@ def build_video(
 
     if not photo_paths:
         raise ValueError("No photos available to build video")
+
+    if structure == "scenographie_15s":
+        _build_15s(
+            business_name=business_name,
+            rating=rating,
+            review_count=review_count,
+            photo_paths=photo_paths,
+            reviews=reviews,
+            output_path=output_path,
+            fps=fps,
+            website_url=website_url,
+            music_path=music_path,
+            maps_url=maps_url,
+            music_offset=music_offset,
+            city=city,
+            country=country,
+            country_code=country_code,
+            lat=lat,
+            lng=lng,
+            card_config=card_config or {},
+            font_bold=font_bold,
+            font_reg=font_reg,
+        )
+        return
 
     # --- Card configuration (per-card enable/duration/content toggles) ---
     cfg = card_config or {}

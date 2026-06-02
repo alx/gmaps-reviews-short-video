@@ -160,12 +160,32 @@
     <input type="hidden" name="description" value="{{ suggested_description }}">
     {% endif %}
 
-    <!-- Video Cards configuration -->
+    <!-- Video Structure + Cards configuration -->
     <div class="card">
-      <h3>🎬 Video Cards</h3>
-      <p class="muted" style="margin-bottom:1rem">Choose which cards appear in your video and set their duration.</p>
+      <h3>🎬 Video Structure</h3>
+      <p class="muted" style="margin-bottom:1rem">Choose the storyboard structure for your video.</p>
 
-      <div class="card-config-table">
+      <div class="structure-selector" style="display:flex;gap:1rem;margin-bottom:1.25rem;flex-wrap:wrap">
+        <label class="structure-option" style="display:flex;align-items:center;gap:.5rem;cursor:pointer;padding:.5rem .75rem;border:1px solid var(--border);border-radius:6px;flex:1;min-width:200px">
+          <input type="radio" name="structure" value="default" checked
+                 onchange="switchStructure('default')" style="margin:0">
+          <span>
+            <strong>Classic (~12s)</strong>
+            <span class="muted" style="display:block;font-size:.8rem">Intro · Review · Map · Outro</span>
+          </span>
+        </label>
+        <label class="structure-option" style="display:flex;align-items:center;gap:.5rem;cursor:pointer;padding:.5rem .75rem;border:1px solid var(--border);border-radius:6px;flex:1;min-width:200px">
+          <input type="radio" name="structure" value="scenographie_15s"
+                 onchange="switchStructure('scenographie_15s')" style="margin:0">
+          <span>
+            <strong>Scénographie 15s</strong>
+            <span class="muted" style="display:block;font-size:.8rem">Hook · Body · Proof · CTA — TikTok/Reels</span>
+          </span>
+        </label>
+      </div>
+
+      <!-- Panel: Classic (default) -->
+      <div id="panel-default" class="card-config-table">
 
         <!-- Intro / Title card -->
         <div class="card-config-row">
@@ -242,7 +262,113 @@
         </div>
 
       </div>
+
+      <!-- Panel: Scénographie 15s -->
+      <div id="panel-15s" class="card-config-table" style="display:none">
+
+        <!-- Hook -->
+        <div class="card-config-row">
+          <label class="card-toggle-label">
+            <input type="checkbox" name="card_hook_enabled" value="1" checked>
+            <span class="card-config-name">Hook <span class="muted" style="font-size:.75rem">0–2s</span></span>
+          </label>
+          <span class="card-config-desc muted">
+            Stars or quote
+            <span style="display:block;margin-top:.25rem">
+              <label style="margin-right:.75rem">
+                <input type="radio" name="hook_variant" value="stars" checked> ★★★★★ Stars
+              </label>
+              <label>
+                <input type="radio" name="hook_variant" value="quote"> « Quote »
+              </label>
+            </span>
+          </span>
+          <div class="card-config-dur">
+            <input type="range" name="card_hook_duration" value="2.0"
+                   min="1" max="5" step="0.5" class="dur-slider"
+                   oninput="this.nextElementSibling.textContent=this.value+'s'"
+                   aria-label="Hook duration">
+            <span class="dur-val">2s</span>
+          </div>
+        </div>
+
+        <!-- Body -->
+        <div class="card-config-row">
+          <label class="card-toggle-label">
+            <input type="checkbox" name="card_body_enabled" value="1" checked>
+            <span class="card-config-name">Body <span class="muted" style="font-size:.75rem">2–10s</span></span>
+          </label>
+          <span class="card-config-desc muted">
+            Reviews on B-roll
+            <span style="display:block;margin-top:.25rem">
+              <select name="body_n_reviews" style="font-size:.85rem;padding:.2rem .4rem">
+                <option value="1" selected>1 review</option>
+                <option value="2">2 reviews (stacked)</option>
+                <option value="3">3 reviews (carousel)</option>
+              </select>
+            </span>
+          </span>
+          <div class="card-config-dur">
+            <input type="range" name="card_body_duration" value="8.0"
+                   min="3" max="12" step="0.5" class="dur-slider"
+                   oninput="this.nextElementSibling.textContent=this.value+'s'"
+                   aria-label="Body duration">
+            <span class="dur-val">8s</span>
+          </div>
+        </div>
+
+        <!-- Proof -->
+        <div class="card-config-row">
+          <label class="card-toggle-label">
+            <input type="checkbox" name="card_proof_enabled" value="1" checked>
+            <span class="card-config-name">Proof <span class="muted" style="font-size:.75rem">10–13s</span></span>
+          </label>
+          <span class="card-config-desc muted">Name · rating · review count</span>
+          <div class="card-config-dur">
+            <input type="range" name="card_proof_duration" value="3.0"
+                   min="1" max="6" step="0.5" class="dur-slider"
+                   oninput="this.nextElementSibling.textContent=this.value+'s'"
+                   aria-label="Proof duration">
+            <span class="dur-val">3s</span>
+          </div>
+        </div>
+
+        <!-- CTA -->
+        <div class="card-config-row">
+          <label class="card-toggle-label">
+            <input type="checkbox" name="card_cta_enabled" value="1" checked>
+            <span class="card-config-name">CTA <span class="muted" style="font-size:.75rem">13–15s</span></span>
+          </label>
+          <span class="card-config-desc muted">
+            Call to action
+            <span style="display:block;margin-top:.25rem;display:flex;flex-direction:column;gap:.3rem">
+              <input type="text" name="cta_text" value="Réservez" placeholder="Réservez / Visitez / Commandez"
+                     style="font-size:.85rem;padding:.25rem .4rem;max-width:220px">
+              <input type="text" name="social_handle" value="" placeholder="@monétablissement (optionnel)"
+                     style="font-size:.85rem;padding:.25rem .4rem;max-width:220px">
+              <label class="card-toggle-inline">
+                <input type="checkbox" name="card_cta_qr" value="1" checked> QR code Google Maps
+              </label>
+            </span>
+          </span>
+          <div class="card-config-dur">
+            <input type="range" name="card_cta_duration" value="2.0"
+                   min="1" max="5" step="0.5" class="dur-slider"
+                   oninput="this.nextElementSibling.textContent=this.value+'s'"
+                   aria-label="CTA duration">
+            <span class="dur-val">2s</span>
+          </div>
+        </div>
+
+      </div>
     </div>
+
+    <script>
+    function switchStructure(s) {
+      document.getElementById('panel-default').style.display = s === 'default' ? '' : 'none';
+      document.getElementById('panel-15s').style.display    = s === 'scenographie_15s' ? '' : 'none';
+    }
+    </script>
 
     <div class="actions">
       <a href="/" class="btn btn-outline">← Start Over</a>

@@ -393,26 +393,54 @@ def step2_submit():
         except (ValueError, TypeError):
             return default
 
-    card_config = {
-        "intro":  {
-            "enabled":  bool(request.form.get("card_intro_enabled")),
-            "duration": _float("card_intro_duration", 2.0),
-        },
-        "review": {
-            "enabled":  bool(request.form.get("card_review_enabled")),
-            "duration": _float("card_review_duration", 4.0),
-        },
-        "map":    {
-            "enabled":  bool(request.form.get("card_map_enabled")),
-            "duration": _float("card_map_duration", 3.0),
-        },
-        "outro":  {
-            "enabled":      bool(request.form.get("card_outro_enabled")),
-            "duration":     _float("card_outro_duration", 5.0),
-            "show_qr":      bool(request.form.get("card_outro_qr")),
-            "show_website": bool(request.form.get("card_outro_website")),
-        },
-    }
+    structure = request.form.get("structure", "default")
+    session["structure"] = structure
+
+    if structure == "scenographie_15s":
+        card_config = {
+            "hook":  {
+                "enabled":  bool(request.form.get("card_hook_enabled", True)),
+                "duration": _float("card_hook_duration", 2.0),
+                "variant":  request.form.get("hook_variant", "stars"),
+            },
+            "body":  {
+                "enabled":   bool(request.form.get("card_body_enabled", True)),
+                "duration":  _float("card_body_duration", 8.0),
+                "n_reviews": int(request.form.get("body_n_reviews", 1) or 1),
+            },
+            "proof": {
+                "enabled":  bool(request.form.get("card_proof_enabled", True)),
+                "duration": _float("card_proof_duration", 3.0),
+            },
+            "cta":   {
+                "enabled":       bool(request.form.get("card_cta_enabled", True)),
+                "duration":      _float("card_cta_duration", 2.0),
+                "cta_text":      request.form.get("cta_text", "Réservez").strip() or "Réservez",
+                "social_handle": request.form.get("social_handle", "").strip(),
+                "show_qr":       bool(request.form.get("card_cta_qr", True)),
+            },
+        }
+    else:
+        card_config = {
+            "intro":  {
+                "enabled":  bool(request.form.get("card_intro_enabled")),
+                "duration": _float("card_intro_duration", 2.0),
+            },
+            "review": {
+                "enabled":  bool(request.form.get("card_review_enabled")),
+                "duration": _float("card_review_duration", 4.0),
+            },
+            "map":    {
+                "enabled":  bool(request.form.get("card_map_enabled")),
+                "duration": _float("card_map_duration", 3.0),
+            },
+            "outro":  {
+                "enabled":      bool(request.form.get("card_outro_enabled")),
+                "duration":     _float("card_outro_duration", 5.0),
+                "show_qr":      bool(request.form.get("card_outro_qr")),
+                "show_website": bool(request.form.get("card_outro_website")),
+            },
+        }
     session["card_config"] = card_config
 
     # Use hidden form field first (survives session loss), fall back to session cookie
@@ -425,6 +453,10 @@ def step2_submit():
     result = fetch_task.result
     reviews = result.get("reviews", [])
     selected_review = reviews[review_idx] if reviews and review_idx < len(reviews) else {}
+
+    # For 15s carousel, pass up to n_reviews reviews; otherwise single review
+    n_reviews_body = card_config.get("body", {}).get("n_reviews", 1) if structure == "scenographie_15s" else 1
+    reviews_list = reviews[:n_reviews_body] if n_reviews_body > 1 else None
 
     photo_source = request.form.get("photo_source", "places")
 
@@ -445,6 +477,8 @@ def step2_submit():
             0.0,
             session.get("maps_url", ""),
             card_config,
+            structure=structure,
+            reviews_list=reviews_list,
         )
     else:
         try:
@@ -463,6 +497,8 @@ def step2_submit():
             0.0,
             session.get("maps_url", ""),
             card_config,
+            structure=structure,
+            reviews_list=reviews_list,
         )
 
     session["generate_task_id"] = gen_task.task_id
