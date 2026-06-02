@@ -41,17 +41,30 @@
     {% block content %}{% endblock %}
   </main>
   <script>
+  // Track whether step3-area already had the loading block before each swap,
+  // so we can scroll on the first injection but skip repeated poll updates.
+  var _step3HadLoading = false;
+  document.body.addEventListener('htmx:beforeSwap', function(evt) {
+    if (evt.detail.target.id === 'step3-area') {
+      _step3HadLoading = !!evt.detail.target.querySelector('#loading-generate');
+    }
+  });
+
   document.body.addEventListener('htmx:afterSwap', function(evt) {
     var target = evt.detail.target;
     if (!target) return;
 
-    // Auto-scroll when a step area is updated with new content,
-    // but skip while video generation is polling (avoids repeated scroll during progress).
+    // Scroll when a step area gets new content. For step3-area, also scroll on the
+    // first appearance of the loading block (but skip repeated 1s poll updates).
     var stepAreas = ['step2-area', 'step3-area'];
-    if (stepAreas.indexOf(target.id) >= 0 && !target.querySelector('#loading-generate')) {
-      setTimeout(function() {
-        target.scrollIntoView({behavior: 'smooth', block: 'start'});
-      }, 120);
+    if (stepAreas.indexOf(target.id) >= 0) {
+      var hasLoading = !!target.querySelector('#loading-generate');
+      var isRepeatPoll = hasLoading && _step3HadLoading;
+      if (!isRepeatPoll) {
+        setTimeout(function() {
+          target.scrollIntoView({behavior: 'smooth', block: 'start'});
+        }, 120);
+      }
     }
 
     // Re-enable the Generate button once video generation finishes (step3-area gets new content).
