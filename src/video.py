@@ -1,9 +1,12 @@
 import contextlib as _contextlib
 import datetime
+import logging
 import os
 import random
 import textwrap
 import time as _time
+
+logger = logging.getLogger(__name__)
 
 _timings: list[tuple[str, float]] = []
 
@@ -444,7 +447,7 @@ def make_map_slide(
         m.add_marker(CircleMarker((lng, lat), "#FF3333", 18))
         img = m.render(zoom=zoom, center=[lng, lat])
     except Exception as exc:
-        print(f"  Warning: map slide skipped ({exc})")
+        logger.warning("map slide skipped: %s", exc)
         return None
 
     img = img.convert("RGBA")
@@ -726,14 +729,15 @@ def build_video(
             logger=None,
             ffmpeg_params=metadata_params,
         )
-    print(f"  Saved: {output_path}")
+    logger.info("saved: %s", output_path)
 
     if _timings:
         total_t = sum(t for _, t in _timings)
-        print("\n── Video generation timing ──────────────────")
+        lines = ["── Video generation timing ──────────────────"]
         for label, t in _timings:
             bar = "█" * int(t / total_t * 30) if total_t > 0 else ""
-            print(f"  {label:<26} {t:6.2f}s  {bar}")
-        print(f"  {'TOTAL':<26} {total_t:6.2f}s")
-        print("─────────────────────────────────────────────\n")
+            lines.append(f"  {label:<26} {t:6.2f}s  {bar}")
+        lines.append(f"  {'TOTAL':<26} {total_t:6.2f}s")
+        lines.append("─────────────────────────────────────────────")
+        logger.info("\n".join(lines))
         _timings.clear()

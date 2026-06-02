@@ -1,3 +1,5 @@
+import logging
+import logging.handlers
 import os
 from pathlib import Path
 from urllib.parse import quote_plus
@@ -6,10 +8,34 @@ from dotenv import load_dotenv
 from flask import Flask
 
 
+def _configure_logging(project_root: Path) -> None:
+    log_file = os.environ.get("LOG_FILE") or str(project_root / "logs" / "app.log")
+    Path(log_file).parent.mkdir(parents=True, exist_ok=True)
+
+    level = logging.DEBUG if os.environ.get("FLASK_DEBUG") else logging.INFO
+    fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+
+    root = logging.getLogger()
+    if root.handlers:
+        return
+    root.setLevel(level)
+
+    stream = logging.StreamHandler()
+    stream.setFormatter(fmt)
+    root.addHandler(stream)
+
+    file_handler = logging.handlers.RotatingFileHandler(
+        log_file, maxBytes=5 * 1024 * 1024, backupCount=3
+    )
+    file_handler.setFormatter(fmt)
+    root.addHandler(file_handler)
+
+
 def create_app(config: dict | None = None) -> Flask:
     load_dotenv()
 
     project_root = Path(__file__).parent.parent.parent
+    _configure_logging(project_root)
     app = Flask(
         __name__,
         template_folder=str(Path(__file__).parent / "templates"),

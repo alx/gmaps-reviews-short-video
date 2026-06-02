@@ -1,9 +1,12 @@
+import logging
 import threading
 import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from .. import gmaps
 from .. import video as video_mod
@@ -69,14 +72,17 @@ def run_in_thread(fn, *args, **kwargs) -> TaskState:
 
 
 def _fetch_task(task: TaskState, url: str, api_key: str, session_dir: str) -> None:
+    logger.info("[task:%s] fetch started url=%s", task.task_id[:8], url)
     store.update(task.task_id, status=TaskStatus.RUNNING, progress="Fetching place data…", progress_pct=10)
     cache_dir = str(Path(session_dir).parent.parent / "place_cache")
     try:
         meta = gmaps.fetch_place_metadata(url, api_key, cache_dir=cache_dir)
     except Exception as exc:
+        logger.error("[task:%s] fetch place metadata failed: %s", task.task_id[:8], exc)
         store.update(task.task_id, status=TaskStatus.ERROR, error=str(exc))
         return
 
+    logger.info("[task:%s] place metadata fetched: %s", task.task_id[:8], meta.get("business_name", ""))
     store.update(task.task_id, progress="Downloading photo previews…", progress_pct=40)
     thumb_dir = Path(session_dir) / "thumbs"
     thumb_dir.mkdir(parents=True, exist_ok=True)
@@ -86,9 +92,11 @@ def _fetch_task(task: TaskState, url: str, api_key: str, session_dir: str) -> No
             indices=None, max_photos=10, width=400, height=711,
         )
     except Exception as exc:
+        logger.error("[task:%s] photo download failed: %s", task.task_id[:8], exc)
         store.update(task.task_id, status=TaskStatus.ERROR, error=f"Photo download failed: {exc}")
         return
 
+    logger.info("[task:%s] fetch done: %d thumbnails", task.task_id[:8], len(thumb_paths))
     store.update(
         task.task_id,
         status=TaskStatus.DONE,
@@ -113,6 +121,7 @@ def _generate_task(
     import datetime
     import json
 
+    logger.info("[task:%s] generate started: %s", task.task_id[:8], place_data.get("business_name", ""))
     store.update(task.task_id, status=TaskStatus.RUNNING, progress="Downloading full-res photos…", progress_pct=10)
     photo_dir = Path(session_dir) / "photos"
     photo_dir.mkdir(parents=True, exist_ok=True)
@@ -122,9 +131,11 @@ def _generate_task(
             indices=photo_indices, max_photos=10,
         )
     except Exception as exc:
+        logger.error("[task:%s] photo download failed: %s", task.task_id[:8], exc)
         store.update(task.task_id, status=TaskStatus.ERROR, error=f"Photo download failed: {exc}")
         return
 
+    logger.info("[task:%s] photos downloaded: %d files", task.task_id[:8], len(photo_paths))
     store.update(task.task_id, progress="Generating video…", progress_pct=40)
     output_path = str(Path(session_dir) / "video.mp4")
     try:
@@ -146,9 +157,11 @@ def _generate_task(
             card_config=card_config or {},
         )
     except Exception as exc:
+        logger.exception("[task:%s] video generation failed: %s", task.task_id[:8], exc)
         store.update(task.task_id, status=TaskStatus.ERROR, error=f"Video generation failed: {exc}")
         return
 
+    logger.info("[task:%s] video generated: %s", task.task_id[:8], output_path)
     store.update(task.task_id, progress="Saving metadata…", progress_pct=90)
     metadata = {
         "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
@@ -166,6 +179,7 @@ def _generate_task(
     with open(metadata_path, "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2, ensure_ascii=False)
 
+    logger.info("[task:%s] generate done: %s", task.task_id[:8], place_data.get("business_name", ""))
     store.update(
         task.task_id,
         status=TaskStatus.DONE,
@@ -195,6 +209,7 @@ def _generate_task_gphotos(
 
     import httpx
 
+    logger.info("[task:%s] generate_gphotos started: %s", task.task_id[:8], place_data.get("business_name", ""))
     store.update(task.task_id, status=TaskStatus.RUNNING, progress="Downloading Google Photos…", progress_pct=10)
     photo_dir = Path(session_dir) / "photos"
     photo_dir.mkdir(parents=True, exist_ok=True)
@@ -207,9 +222,11 @@ def _generate_task_gphotos(
             out.write_bytes(resp.content)
             photo_paths.append(str(out))
         except Exception as exc:
+            logger.error("[task:%s] photo download failed (slot %d): %s", task.task_id[:8], slot, exc)
             store.update(task.task_id, status=TaskStatus.ERROR, error=f"Photo download failed: {exc}")
             return
 
+    logger.info("[task:%s] photos downloaded: %d files", task.task_id[:8], len(photo_paths))
     store.update(task.task_id, progress="Generating video…", progress_pct=40)
     output_path = str(Path(session_dir) / "video.mp4")
     try:
@@ -231,9 +248,11 @@ def _generate_task_gphotos(
             card_config=card_config or {},
         )
     except Exception as exc:
+        logger.exception("[task:%s] video generation failed: %s", task.task_id[:8], exc)
         store.update(task.task_id, status=TaskStatus.ERROR, error=f"Video generation failed: {exc}")
         return
 
+    logger.info("[task:%s] video generated: %s", task.task_id[:8], output_path)
     store.update(task.task_id, progress="Saving metadata…", progress_pct=90)
     metadata = {
         "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
@@ -252,6 +271,7 @@ def _generate_task_gphotos(
     with open(metadata_path, "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2, ensure_ascii=False)
 
+    logger.info("[task:%s] generate_gphotos done: %s", task.task_id[:8], place_data.get("business_name", ""))
     store.update(
         task.task_id,
         status=TaskStatus.DONE,
