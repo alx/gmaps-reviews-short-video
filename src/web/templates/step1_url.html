@@ -51,17 +51,23 @@
             <button type="button" class="btn-sample" onclick="document.getElementById('maps_url').value='https://maps.app.goo.gl/qtAadc4T23SA22Wx8'">Breeze Restaurant &amp; Basket Boat · Hoi An 🇻🇳</button>
           </div>
         </div>
-        <div class="actions" style="flex-direction:column; gap:0.5rem; align-items:stretch;">
-          <button id="btn-auto" type="submit" class="btn btn-primary"
-                  onclick="document.getElementById('auto-mode-input').value='1'">
-            <span class="htmx-indicator spinner"></span>
-            ▶ Generate Video — 1 Click
-          </button>
-          <button id="fetch-btn" type="submit" class="btn btn-outline"
-                  onclick="document.getElementById('auto-mode-input').value='0'">
-            <span class="htmx-indicator spinner"></span>
-            Fetch Place Data →
-          </button>
+        <div class="actions" style="flex-direction:column; gap:0.75rem; align-items:stretch;">
+          <div>
+            <button id="btn-auto" type="submit" class="btn btn-primary" style="width:100%;"
+                    onclick="document.getElementById('auto-mode-input').value='1'">
+              <span class="htmx-indicator spinner"></span>
+              ▶ Generate Video — 1 Click
+            </button>
+            <p class="muted" style="margin:0.3rem 0 0; font-size:0.8rem; text-align:center;">Best photos &amp; top review picked automatically</p>
+          </div>
+          <div>
+            <button id="fetch-btn" type="submit" class="btn btn-outline" style="width:100%;"
+                    onclick="document.getElementById('auto-mode-input').value='0'">
+              <span class="htmx-indicator spinner"></span>
+              Fetch Place Data →
+            </button>
+            <p class="muted" style="margin:0.3rem 0 0; font-size:0.8rem; text-align:center;">Choose photos, review, music &amp; card layout</p>
+          </div>
         </div>
       </form>
     </div>
