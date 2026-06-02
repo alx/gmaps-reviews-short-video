@@ -4,6 +4,7 @@ import logging
 import os
 import subprocess
 import threading
+from pathlib import Path
 
 from flask import Blueprint, current_app, request
 
@@ -59,10 +60,24 @@ def github_webhook():
             )
             if r.returncode == 0:
                 logger.info("git pull succeeded: %s", r.stdout.strip())
+                # Gracefully reload gunicorn workers so Python code changes take effect
+                _reload_gunicorn(project_root)
             else:
                 logger.error("git pull failed (rc=%d): %s %s", r.returncode, r.stdout, r.stderr)
         except Exception as exc:
             logger.exception("git pull error: %s", exc)
+
+    def _reload_gunicorn(cwd: str):
+        pid_file = Path(cwd) / "gunicorn.pid"
+        if not pid_file.exists():
+            logger.warning("gunicorn.pid not found at %s — skipping reload", pid_file)
+            return
+        try:
+            pid = int(pid_file.read_text().strip())
+            os.kill(pid, __import__("signal").SIGHUP)
+            logger.info("Sent SIGHUP to gunicorn master (pid %d)", pid)
+        except Exception as exc:
+            logger.warning("Could not reload gunicorn: %s", exc)
 
     threading.Thread(target=_pull, daemon=True).start()
     return {"message": "Pull scheduled"}, 200

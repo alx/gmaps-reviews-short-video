@@ -17,6 +17,7 @@ def create_app(config: dict | None = None) -> Flask:
     )
 
     app.secret_key = os.environ.get("FLASK_SECRET_KEY") or os.urandom(32)
+    app.config["TEMPLATES_AUTO_RELOAD"] = True
     app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024
     app.config["GOOGLE_MAPS_API_KEY"] = os.environ.get("GOOGLE_MAPS_API_KEY", "")
     app.config["YOUTUBE_CLIENT_SECRETS"] = os.environ.get("YOUTUBE_CLIENT_SECRETS", "")
@@ -74,5 +75,6 @@ def run_prod() -> None:
         "worker_class": "gthread",
         "threads": 4,
         "loglevel": "info",
+        "pidfile": str(Path(__file__).parent.parent.parent / "gunicorn.pid"),
     }
     _App(create_app(), options).run()
