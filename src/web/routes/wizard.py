@@ -269,36 +269,10 @@ def poll_generate(task_id: str):
     video_rel = os.path.relpath(result["video_path"], workspace)
     video_url = url_for("media.serve_media", filename=video_rel)
 
-    from ..routes.youtube_oauth import get_or_refresh_credentials
-    creds = get_or_refresh_credentials()
-
     return render_template(
         "fragments/step3_block.html",
         video_url=video_url,
         title=session.get("title_override", ""),
-        yt_authed=creds is not None,
-    )
-
-
-@wizard.get("/tasks/<task_id>/poll/publish")
-def poll_publish(task_id: str):
-    task = task_mod.store.get(task_id)
-    if not task:
-        return render_template("fragments/publish_result.html", error="Task not found.", youtube_url=None, title="")
-    if task.status == TaskStatus.ERROR:
-        return render_template("fragments/publish_result.html", error=task.error, youtube_url=None, title="")
-    if task.status != TaskStatus.DONE:
-        return render_template(
-            "fragments/publish_loading.html",
-            task_id=task_id,
-            pct=task.progress_pct or 0,
-            progress=task.progress or "Uploading…",
-        )
-    return render_template(
-        "fragments/publish_result.html",
-        youtube_url=task.result.get("youtube_url"),
-        title=session.get("title_override", ""),
-        error=None,
     )
 
 
@@ -452,42 +426,6 @@ def serve_mp3(filename: str):
         abort(400)
     mp3_dir = Path(current_app.config.get("PROJECT_ROOT", "")) / "mp3"
     return send_from_directory(str(mp3_dir), filename)
-
-
-# ---------------------------------------------------------------------------
-# Publish (HTMX)
-# ---------------------------------------------------------------------------
-
-@wizard.post("/step5/publish")
-def step5_publish():
-    gen_task_id = session.get("generate_task_id")
-    if not gen_task_id:
-        return render_template("fragments/publish_result.html", error="No video generated. Start over.")
-    gen_task = task_mod.store.get(gen_task_id)
-    if not gen_task or gen_task.status != TaskStatus.DONE:
-        return render_template("fragments/publish_result.html", error="Video not ready.")
-
-    result = gen_task.result
-    title = session.get("title_override", "")
-    description = session.get("description_override", "")
-    music_copyright = session.get("music_copyright", "")
-    if music_copyright:
-        description += f"\n\n\U0001f3b5 {music_copyright}"
-
-    pub_task = task_mod.run_in_thread(
-        task_mod._publish_task,
-        result["video_path"],
-        title,
-        description,
-        result["metadata_path"],
-    )
-    session["publish_task_id"] = pub_task.task_id
-    return render_template(
-        "fragments/publish_loading.html",
-        task_id=pub_task.task_id,
-        pct=0,
-        progress="Uploading to YouTube…",
-    )
 
 
 # ---------------------------------------------------------------------------

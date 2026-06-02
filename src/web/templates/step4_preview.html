@@ -6,7 +6,7 @@
 {% block content %}
 <div class="card">
   <h2>Video Preview</h2>
-  <p class="muted" style="margin-bottom:1.25rem">Review the generated video before publishing.</p>
+  <p class="muted" style="margin-bottom:1.25rem">Your video is ready. Download it and upload to YouTube.</p>
 
   <div class="video-preview">
     <video controls playsinline preload="metadata"
@@ -16,13 +16,9 @@
     </video>
 
     <div class="metadata-box">
-      <p class="section-title">YouTube metadata</p>
-
-      <div class="form-group" style="margin-bottom:0.75rem">
-        <label>Title</label>
-        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:0.55rem 0.75rem;font-size:0.9rem;">
-          {{ title or '(not set)' }}
-        </div>
+      <p class="section-title">Title</p>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:0.55rem 0.75rem;font-size:0.9rem;margin-bottom:1rem;">
+        {{ title or '(not set)' }}
       </div>
 
       <div class="form-group" style="margin-bottom:0.75rem">
@@ -35,14 +31,10 @@
 
 <div class="actions">
   <a href="/step3" class="btn btn-outline">← Regenerate</a>
-  <a href="/step5" class="btn btn-primary">Looks Good → Publish</a>
-  <a href="{{ video_url }}" download class="btn btn-outline">⬇ Download MP4</a>
+  <a href="{{ video_url }}" download class="btn btn-primary">⬇ Download MP4</a>
 </div>
 
 <script>
-document.querySelector('a[href="/step5"]').addEventListener('click', function() {
-  gtag('event', 'proceed_to_publish');
-});
 document.querySelector('a[download]').addEventListener('click', function() {
   gtag('event', 'video_downloaded');
 });

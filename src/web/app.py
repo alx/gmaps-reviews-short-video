@@ -20,7 +20,6 @@ def create_app(config: dict | None = None) -> Flask:
     app.config["TEMPLATES_AUTO_RELOAD"] = True
     app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024
     app.config["GOOGLE_MAPS_API_KEY"] = os.environ.get("GOOGLE_MAPS_API_KEY", "")
-    app.config["YOUTUBE_CLIENT_SECRETS"] = os.environ.get("YOUTUBE_CLIENT_SECRETS", "")
     app.config["GPHOTOS_CLIENT_SECRETS"] = os.environ.get("GPHOTOS_CLIENT_SECRETS", "")
     app.config["PROJECT_ROOT"] = str(project_root)
 
@@ -35,13 +34,11 @@ def create_app(config: dict | None = None) -> Flask:
 
     from .routes.wizard import wizard
     from .routes.media import media_bp
-    from .routes.youtube_oauth import yt_oauth
     from .routes.gphotos_oauth import gp_oauth
     from .routes.webhook import webhook
 
     app.register_blueprint(wizard)
     app.register_blueprint(media_bp)
-    app.register_blueprint(yt_oauth)
     app.register_blueprint(gp_oauth)
     app.register_blueprint(webhook)
 
