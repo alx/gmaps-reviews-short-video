@@ -45,9 +45,10 @@
     var target = evt.detail.target;
     if (!target) return;
 
-    // Auto-scroll when a step area is updated with new content.
+    // Auto-scroll when a step area is updated with new content,
+    // but skip while video generation is polling (avoids repeated scroll during progress).
     var stepAreas = ['step2-area', 'step3-area'];
-    if (stepAreas.indexOf(target.id) >= 0) {
+    if (stepAreas.indexOf(target.id) >= 0 && !target.querySelector('#loading-generate')) {
       setTimeout(function() {
         target.scrollIntoView({behavior: 'smooth', block: 'start'});
       }, 120);
