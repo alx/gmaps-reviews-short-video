@@ -44,7 +44,9 @@
   <footer class="site-footer">
     <a href="{{ github_commit_url }}" target="_blank" rel="noopener" class="footer-commit">{{ commit_short }}</a>
     <span class="footer-sep">·</span>
-    <span class="footer-date">{{ commit_date }}</span>
+    <span class="footer-date">{{ commit_date }} {{ commit_time }}</span>
+    <span class="footer-sep">·</span>
+    <span class="footer-ago">{{ commit_ago }}</span>
   </footer>
   {% endif %}
   <script>

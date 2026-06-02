@@ -12,8 +12,8 @@ from flask import Flask
 GITHUB_REPO = "alx/gmaps-reviews-short-video"
 
 
-def _read_commit_info(project_root: Path) -> tuple[str, str]:
-    """Return (short_hash, human_date) for the current HEAD commit."""
+def _read_commit_info(project_root: Path) -> tuple[str, datetime.datetime | None]:
+    """Return (full_hash, commit_datetime) for the current HEAD commit."""
     try:
         out = subprocess.check_output(
             ["git", "log", "-1", "--format=%H %ci"],
@@ -23,9 +23,24 @@ def _read_commit_info(project_root: Path) -> tuple[str, str]:
         ).strip()
         full_hash, date_part = out.split(" ", 1)
         dt = datetime.datetime.strptime(date_part[:19], "%Y-%m-%d %H:%M:%S")
-        return full_hash, dt.strftime("%-d %b %Y")
+        return full_hash, dt
     except Exception:
-        return "", ""
+        return "", None
+
+
+def _relative_time(dt: datetime.datetime) -> str:
+    delta = datetime.datetime.now() - dt
+    seconds = int(delta.total_seconds())
+    if seconds < 60:
+        return f"{seconds} second{'s' if seconds != 1 else ''} ago"
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours} hour{'s' if hours != 1 else ''} ago"
+    days = hours // 24
+    return f"{days} day{'s' if days != 1 else ''} ago"
 
 
 def _configure_logging(project_root: Path) -> None:
@@ -83,15 +98,20 @@ def create_app(config: dict | None = None) -> Flask:
     if config:
         app.config.update(config)
 
-    commit_hash, commit_date = _read_commit_info(project_root)
+    commit_hash, commit_dt = _read_commit_info(project_root)
 
     @app.context_processor
     def inject_flags():
+        commit_date = commit_dt.strftime("%-d %b %Y") if commit_dt else ""
+        commit_time = commit_dt.strftime("%H:%M") if commit_dt else ""
+        commit_ago = _relative_time(commit_dt) if commit_dt else ""
         return {
             "yt_publish_enabled": app.config.get("YOUTUBE_PUBLISH_ENABLED", False),
             "commit_hash": commit_hash,
             "commit_short": commit_hash[:7] if commit_hash else "",
             "commit_date": commit_date,
+            "commit_time": commit_time,
+            "commit_ago": commit_ago,
             "github_commit_url": f"https://github.com/{GITHUB_REPO}/commit/{commit_hash}" if commit_hash else "",
         }
 
