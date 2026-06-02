@@ -38,4 +38,13 @@
   <a href="/step5" class="btn btn-primary">Looks Good → Publish</a>
   <a href="{{ video_url }}" download class="btn btn-outline">⬇ Download MP4</a>
 </div>
+
+<script>
+document.querySelector('a[href="/step5"]').addEventListener('click', function() {
+  gtag('event', 'proceed_to_publish');
+});
+document.querySelector('a[download]').addEventListener('click', function() {
+  gtag('event', 'video_downloaded');
+});
+</script>
 {% endblock %}

@@ -59,4 +59,10 @@
   </div>
 
 </form>
+
+<script>
+document.querySelector('form[action="/step3/submit"]').addEventListener('submit', function() {
+  gtag('event', 'generate_video');
+});
+</script>
 {% endblock %}

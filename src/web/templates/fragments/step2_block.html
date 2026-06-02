@@ -387,3 +387,17 @@ function loadMusicLicense(filename) {
     .catch(() => {});
 }
 </script>
+
+{% if auto_mode %}
+<script>
+  (function() {
+    {% if auto_preset_music %}
+    var radio = document.querySelector('input[name="preset_music"][value="{{ auto_preset_music }}"]');
+    if (radio) radio.checked = true;
+    {% endif %}
+    setTimeout(function() {
+      htmx.trigger(document.getElementById('select-form'), 'submit');
+    }, 50);
+  })();
+</script>
+{% endif %}

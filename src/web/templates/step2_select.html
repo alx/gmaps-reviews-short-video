@@ -97,5 +97,12 @@
   // Also update when a checkbox changes
   grid.addEventListener('change', updateOrder);
 })();
+
+var selectForm = document.getElementById('select-form');
+if (selectForm) {
+  selectForm.addEventListener('submit', function() {
+    gtag('event', 'step2_submit');
+  });
+}
 </script>
 {% endblock %}

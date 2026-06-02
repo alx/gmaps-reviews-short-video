@@ -83,6 +83,9 @@ def step1_submit():
     if not maps_url:
         return render_template("step1_url.html", error="Please enter a Google Maps URL.")
 
+    auto_mode = request.form.get("auto_mode", "0") == "1"
+    session["auto_mode"] = auto_mode
+
     task = task_mod.store.create()
     real_dir = _session_dir(task.task_id)
     t = threading.Thread(
@@ -208,6 +211,9 @@ def poll_fetch(task_id: str):
         if mp3_dir.exists() else []
     )
 
+    import random
+    auto_preset_music = random.choice(preset_music) if preset_music else ""
+
     from ..routes.gphotos_oauth import get_or_refresh_gp_credentials
 
     gp_authed = get_or_refresh_gp_credentials(result["session_dir"]) is not None
@@ -225,6 +231,8 @@ def poll_fetch(task_id: str):
         suggested_description=suggested_description,
         gp_authed=gp_authed,
         has_location=bool(result.get("lat") and result.get("lng")),
+        auto_mode=session.get("auto_mode", False),
+        auto_preset_music=auto_preset_music,
     )
 
 

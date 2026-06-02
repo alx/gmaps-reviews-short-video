@@ -32,8 +32,8 @@
 
       <form hx-post="/step1/submit"
             hx-target="#step2-area"
-            hx-swap="innerHTML"
-            hx-indicator="#fetch-btn">
+            hx-swap="innerHTML">
+        <input type="hidden" id="auto-mode-input" name="auto_mode" value="0">
         <div class="form-group">
           <label for="maps_url">Google Maps URL</label>
           <input
@@ -51,8 +51,14 @@
             <button type="button" class="btn-sample" onclick="document.getElementById('maps_url').value='https://maps.app.goo.gl/qtAadc4T23SA22Wx8'">Breeze Restaurant &amp; Basket Boat · Hoi An 🇻🇳</button>
           </div>
         </div>
-        <div class="actions">
-          <button id="fetch-btn" type="submit" class="btn btn-primary">
+        <div class="actions" style="flex-direction:column; gap:0.5rem; align-items:stretch;">
+          <button id="btn-auto" type="submit" class="btn btn-primary"
+                  onclick="document.getElementById('auto-mode-input').value='1'">
+            <span class="htmx-indicator spinner"></span>
+            ▶ Generate Video — 1 Click
+          </button>
+          <button id="fetch-btn" type="submit" class="btn btn-outline"
+                  onclick="document.getElementById('auto-mode-input').value='0'">
             <span class="htmx-indicator spinner"></span>
             Fetch Place Data →
           </button>
@@ -92,4 +98,12 @@
   </div>
 
 </div>
+
+<script>
+document.querySelectorAll('.btn-sample').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    gtag('event', 'sample_url_used', {button_label: this.textContent.trim()});
+  });
+});
+</script>
 {% endblock %}

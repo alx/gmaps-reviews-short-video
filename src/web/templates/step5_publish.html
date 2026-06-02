@@ -78,4 +78,18 @@
 
 </div>
 
+{% if youtube_url %}
+<script>gtag('event', 'video_published');</script>
+{% endif %}
+
+<script>
+var publishForm = document.querySelector('form[action="/step5/publish"]');
+if (publishForm) {
+  publishForm.addEventListener('submit', function() { gtag('event', 'publish_started'); });
+}
+var ytAuthLink = document.querySelector('a[href="/youtube/authorize"]');
+if (ytAuthLink) {
+  ytAuthLink.addEventListener('click', function() { gtag('event', 'youtube_connect'); });
+}
+</script>
 {% endblock %}

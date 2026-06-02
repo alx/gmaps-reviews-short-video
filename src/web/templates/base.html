@@ -26,6 +26,15 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   <script src="{{ url_for('static', filename='js/htmx.min.js') }}"></script>
   <script src="{{ url_for('static', filename='js/sortable.min.js') }}"></script>
+
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-RNRWTR02LF"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-RNRWTR02LF');
+  </script>
 </head>
 <body>
   <main>
@@ -48,6 +57,18 @@
     if (target.id === 'step3-area') {
       var btn = document.getElementById('generate-btn');
       if (btn) btn.disabled = false;
+    }
+
+    // Fire GA4 events as the user progresses through wizard steps.
+    var gaStepMap = {'step2-area': 'step1_complete', 'step3-area': 'step2_complete', 'step4-area': 'video_generated'};
+    var gaEvent = gaStepMap[target.id];
+    if (gaEvent) gtag('event', gaEvent);
+  });
+
+  document.body.addEventListener('htmx:beforeRequest', function(evt) {
+    var elt = evt.detail.elt;
+    if (elt && elt.getAttribute && elt.getAttribute('hx-post') === '/step1/submit') {
+      gtag('event', 'fetch_place_data');
     }
   });
   </script>
