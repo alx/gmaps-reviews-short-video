@@ -1,9 +1,12 @@
 import datetime
 import json
+import logging
 import os
 import re
 import time
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from flask import (
     Blueprint,
@@ -88,6 +91,15 @@ def step1_submit():
     auto_mode = request.form.get("auto_mode", "0") == "1"
     session["auto_mode"] = auto_mode
 
+    raw_vibe = request.form.get("industry_vibe", "other").strip().lower()
+    industry_vibe = raw_vibe if raw_vibe in task_mod.VALID_VIBES else "other"
+    session["industry_vibe"] = industry_vibe
+
+    logger.info(
+        "url_submitted maps_url=%s vibe=%s auto_mode=%s",
+        maps_url, industry_vibe, auto_mode,
+    )
+
     task = task_mod.store.create()
     real_dir = _session_dir(task.task_id)
     t = threading.Thread(
@@ -104,6 +116,7 @@ def step1_submit():
         task_id=task.task_id,
         pct=0,
         progress="Starting…",
+        industry_vibe=industry_vibe,
     )
 
 
@@ -235,6 +248,7 @@ def poll_fetch(task_id: str):
         has_location=bool(result.get("lat") and result.get("lng")),
         auto_mode=session.get("auto_mode", False),
         auto_preset_music=auto_preset_music,
+        industry_vibe=session.get("industry_vibe", "other"),
     )
 
 
@@ -426,6 +440,10 @@ def step2_submit():
     reviews = result.get("reviews", [])
     selected_review = reviews[review_idx] if reviews and review_idx < len(reviews) else {}
 
+    raw_vibe = (request.form.get("industry_vibe") or session.get("industry_vibe", "other")).strip().lower()
+    industry_vibe = raw_vibe if raw_vibe in task_mod.VALID_VIBES else "other"
+    session["industry_vibe"] = industry_vibe
+
     photo_source = request.form.get("photo_source", "places")
 
     if photo_source == "gphotos":
@@ -445,6 +463,7 @@ def step2_submit():
             0.0,
             session.get("maps_url", ""),
             card_config,
+            industry_vibe,
         )
     else:
         try:
@@ -463,6 +482,7 @@ def step2_submit():
             0.0,
             session.get("maps_url", ""),
             card_config,
+            industry_vibe,
         )
 
     session["generate_task_id"] = gen_task.task_id

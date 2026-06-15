@@ -1,4 +1,5 @@
 import logging
+import os
 import threading
 import time
 import uuid
@@ -6,10 +7,93 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
+import httpx
+
 logger = logging.getLogger(__name__)
 
 from .. import gmaps
 from .. import video as video_mod
+
+# ---------------------------------------------------------------------------
+# Sidecar helpers
+# ---------------------------------------------------------------------------
+
+_SIDECAR_PORT = int(os.getenv("SIDECAR_PORT", "3001"))
+_SIDECAR_BASE = f"http://127.0.0.1:{_SIDECAR_PORT}"
+_PROJECT_ROOT = str(Path(__file__).parent.parent.parent)
+
+
+def _asset_url(path: str) -> str:
+    """Convert an absolute local path to a sidecar /assets/ URL."""
+    rel = os.path.relpath(path, _PROJECT_ROOT)
+    return f"{_SIDECAR_BASE}/assets/{rel}"
+
+
+VALID_VIBES = {"restaurant", "medical", "retail", "other"}
+
+
+def _build_input_props(
+    place_data: dict,
+    photo_paths: list[str],
+    selected_review: dict,
+    music_path: str | None,
+    maps_url: str,
+    card_config: dict | None,
+    map_image_url: str,
+    industry_vibe: str = "other",
+) -> dict:
+    cfg = card_config or {}
+    ci = cfg.get("intro", {})
+    cr = cfg.get("review", {})
+    cm = cfg.get("map", {})
+    co = cfg.get("outro", {})
+    vibe = industry_vibe if industry_vibe in VALID_VIBES else "other"
+    return {
+        "businessName": place_data["business_name"],
+        "rating": float(place_data["rating"]),
+        "city": place_data.get("city", ""),
+        "country": place_data.get("country", ""),
+        "countryCode": place_data.get("country_code", ""),
+        "websiteUrl": place_data.get("website_url", ""),
+        "mapsUrl": maps_url or "",
+        "review": selected_review if selected_review else None,
+        "photoUrls": [_asset_url(p) for p in photo_paths],
+        "mapImageUrl": map_image_url,
+        "musicUrl": _asset_url(music_path) if music_path else "",
+        "musicOffset": 0.0,
+        "industryVibe": vibe,
+        "cards": {
+            "intro":  {"enabled": bool(ci.get("enabled", True))},
+            "review": {"enabled": bool(cr.get("enabled", True)) and bool(selected_review)},
+            "map":    {"enabled": bool(cm.get("enabled", True)) and bool(map_image_url)},
+            "outro":  {
+                "enabled":     bool(co.get("enabled", True)),
+                "showQr":      bool(co.get("show_qr", True)),
+                "showWebsite": bool(co.get("show_website", True)),
+            },
+        },
+    }
+
+
+def _render_via_sidecar(task: "TaskState", input_props: dict, output_path: str) -> None:
+    """POST a render job to the sidecar and poll until done, updating task progress."""
+    resp = httpx.post(
+        f"{_SIDECAR_BASE}/render",
+        json={"outputPath": output_path, "inputProps": input_props},
+        timeout=15,
+    )
+    resp.raise_for_status()
+    job_id = resp.json()["jobId"]
+
+    while True:
+        prog = httpx.get(f"{_SIDECAR_BASE}/jobs/{job_id}", timeout=10).json()
+        pct = 40 + int(prog["progress"] * 55)  # maps 0→1 into 40%→95%
+        store.update(task.task_id, progress_pct=pct)
+        if prog["done"]:
+            if prog["error"]:
+                raise RuntimeError(prog["error"])
+            break
+        time.sleep(1)
 
 
 class TaskStatus(str, Enum):
@@ -106,6 +190,80 @@ def _fetch_task(task: TaskState, url: str, api_key: str, session_dir: str) -> No
     )
 
 
+def _run_generate_core(
+    task: TaskState,
+    session_dir: str,
+    place_data: dict,
+    photo_paths: list[str],
+    selected_review: dict,
+    music_path: str | None,
+    maps_url: str,
+    card_config: dict | None,
+    industry_vibe: str,
+    extra_metadata: dict | None = None,
+) -> None:
+    import datetime
+    import json
+
+    cfg = card_config or {}
+    map_image_url = ""
+    if cfg.get("map", {}).get("enabled", True) and place_data.get("lat") and place_data.get("lng"):
+        store.update(task.task_id, progress="Rendering map…", progress_pct=25)
+        map_path = str(Path(session_dir) / "map.png")
+        result = video_mod.render_map_image(place_data["lat"], place_data["lng"], map_path)
+        if result:
+            map_image_url = _asset_url(map_path)
+
+    store.update(task.task_id, progress=f"Generating {industry_vibe}-style video…", progress_pct=40)
+    output_path = str(Path(session_dir) / "video.mp4")
+    input_props = _build_input_props(
+        place_data, photo_paths, selected_review, music_path, maps_url, card_config,
+        map_image_url, industry_vibe,
+    )
+    try:
+        _render_via_sidecar(task, input_props, output_path)
+    except Exception as exc:
+        logger.exception("[task:%s] video generation failed: %s", task.task_id[:8], exc)
+        store.update(task.task_id, status=TaskStatus.ERROR, error=f"Video generation failed: {exc}")
+        return
+
+    logger.info(
+        "[task:%s] video_generated business=%s vibe=%s",
+        task.task_id[:8], place_data.get("business_name", ""), industry_vibe,
+    )
+    store.update(task.task_id, progress="Saving metadata…", progress_pct=95)
+    metadata: dict = {
+        "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
+        "maps_url": maps_url,
+        "business_name": place_data["business_name"],
+        "rating": place_data["rating"],
+        "review_count": place_data["review_count"],
+        "website_url": place_data.get("website_url", ""),
+        "review": selected_review or None,
+        "photo_count": len(photo_paths),
+        "industry_vibe": industry_vibe,
+        "music": music_path,
+        "output_video": output_path,
+    }
+    if extra_metadata:
+        metadata.update(extra_metadata)
+    metadata_path = str(Path(session_dir) / "metadata.json")
+    with open(metadata_path, "w", encoding="utf-8") as f:
+        json.dump(metadata, f, indent=2, ensure_ascii=False)
+
+    store.update(
+        task.task_id,
+        status=TaskStatus.DONE,
+        progress="Done",
+        progress_pct=100,
+        result={
+            "video_path": output_path,
+            "metadata_path": metadata_path,
+            "metadata": metadata,
+        },
+    )
+
+
 def _generate_task(
     task: TaskState,
     session_dir: str,
@@ -117,11 +275,12 @@ def _generate_task(
     music_offset: float,
     maps_url: str,
     card_config: dict | None = None,
+    industry_vibe: str = "other",
 ) -> None:
-    import datetime
-    import json
-
-    logger.info("[task:%s] generate started: %s", task.task_id[:8], place_data.get("business_name", ""))
+    logger.info(
+        "[task:%s] generate started business=%s vibe=%s",
+        task.task_id[:8], place_data.get("business_name", ""), industry_vibe,
+    )
     store.update(task.task_id, status=TaskStatus.RUNNING, progress="Downloading full-res photos…", progress_pct=10)
     photo_dir = Path(session_dir) / "photos"
     photo_dir.mkdir(parents=True, exist_ok=True)
@@ -136,60 +295,9 @@ def _generate_task(
         return
 
     logger.info("[task:%s] photos downloaded: %d files", task.task_id[:8], len(photo_paths))
-    store.update(task.task_id, progress="Generating video…", progress_pct=40)
-    output_path = str(Path(session_dir) / "video.mp4")
-    try:
-        video_mod.build_video(
-            business_name=place_data["business_name"],
-            rating=place_data["rating"],
-            photo_paths=photo_paths,
-            reviews=[selected_review] if selected_review else [],
-            output_path=output_path,
-            website_url=place_data.get("website_url", ""),
-            music_path=music_path,
-            maps_url=maps_url,
-            music_offset=music_offset,
-            city=place_data.get("city", ""),
-            country=place_data.get("country", ""),
-            country_code=place_data.get("country_code", ""),
-            lat=place_data.get("lat"),
-            lng=place_data.get("lng"),
-            card_config=card_config or {},
-        )
-    except Exception as exc:
-        logger.exception("[task:%s] video generation failed: %s", task.task_id[:8], exc)
-        store.update(task.task_id, status=TaskStatus.ERROR, error=f"Video generation failed: {exc}")
-        return
-
-    logger.info("[task:%s] video generated: %s", task.task_id[:8], output_path)
-    store.update(task.task_id, progress="Saving metadata…", progress_pct=90)
-    metadata = {
-        "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
-        "maps_url": maps_url,
-        "business_name": place_data["business_name"],
-        "rating": place_data["rating"],
-        "review_count": place_data["review_count"],
-        "website_url": place_data.get("website_url", ""),
-        "review": selected_review or None,
-        "photo_count": len(photo_paths),
-        "music": music_path,
-        "output_video": output_path,
-    }
-    metadata_path = str(Path(session_dir) / "metadata.json")
-    with open(metadata_path, "w", encoding="utf-8") as f:
-        json.dump(metadata, f, indent=2, ensure_ascii=False)
-
-    logger.info("[task:%s] generate done: %s", task.task_id[:8], place_data.get("business_name", ""))
-    store.update(
-        task.task_id,
-        status=TaskStatus.DONE,
-        progress="Done",
-        progress_pct=100,
-        result={
-            "video_path": output_path,
-            "metadata_path": metadata_path,
-            "metadata": metadata,
-        },
+    _run_generate_core(
+        task, session_dir, place_data, photo_paths, selected_review,
+        music_path, maps_url, card_config, industry_vibe,
     )
 
 
@@ -203,13 +311,12 @@ def _generate_task_gphotos(
     music_offset: float,
     maps_url: str,
     card_config: dict | None = None,
+    industry_vibe: str = "other",
 ) -> None:
-    import datetime
-    import json
-
-    import httpx
-
-    logger.info("[task:%s] generate_gphotos started: %s", task.task_id[:8], place_data.get("business_name", ""))
+    logger.info(
+        "[task:%s] generate_gphotos started business=%s vibe=%s",
+        task.task_id[:8], place_data.get("business_name", ""), industry_vibe,
+    )
     store.update(task.task_id, status=TaskStatus.RUNNING, progress="Downloading Google Photos…", progress_pct=10)
     photo_dir = Path(session_dir) / "photos"
     photo_dir.mkdir(parents=True, exist_ok=True)
@@ -227,61 +334,10 @@ def _generate_task_gphotos(
             return
 
     logger.info("[task:%s] photos downloaded: %d files", task.task_id[:8], len(photo_paths))
-    store.update(task.task_id, progress="Generating video…", progress_pct=40)
-    output_path = str(Path(session_dir) / "video.mp4")
-    try:
-        video_mod.build_video(
-            business_name=place_data["business_name"],
-            rating=place_data["rating"],
-            photo_paths=photo_paths,
-            reviews=[selected_review] if selected_review else [],
-            output_path=output_path,
-            website_url=place_data.get("website_url", ""),
-            music_path=music_path,
-            maps_url=maps_url,
-            music_offset=music_offset,
-            city=place_data.get("city", ""),
-            country=place_data.get("country", ""),
-            country_code=place_data.get("country_code", ""),
-            lat=place_data.get("lat"),
-            lng=place_data.get("lng"),
-            card_config=card_config or {},
-        )
-    except Exception as exc:
-        logger.exception("[task:%s] video generation failed: %s", task.task_id[:8], exc)
-        store.update(task.task_id, status=TaskStatus.ERROR, error=f"Video generation failed: {exc}")
-        return
-
-    logger.info("[task:%s] video generated: %s", task.task_id[:8], output_path)
-    store.update(task.task_id, progress="Saving metadata…", progress_pct=90)
-    metadata = {
-        "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
-        "maps_url": maps_url,
-        "business_name": place_data["business_name"],
-        "rating": place_data["rating"],
-        "review_count": place_data["review_count"],
-        "website_url": place_data.get("website_url", ""),
-        "review": selected_review or None,
-        "photo_count": len(photo_paths),
-        "photo_source": "google_photos",
-        "music": music_path,
-        "output_video": output_path,
-    }
-    metadata_path = str(Path(session_dir) / "metadata.json")
-    with open(metadata_path, "w", encoding="utf-8") as f:
-        json.dump(metadata, f, indent=2, ensure_ascii=False)
-
-    logger.info("[task:%s] generate_gphotos done: %s", task.task_id[:8], place_data.get("business_name", ""))
-    store.update(
-        task.task_id,
-        status=TaskStatus.DONE,
-        progress="Done",
-        progress_pct=100,
-        result={
-            "video_path": output_path,
-            "metadata_path": metadata_path,
-            "metadata": metadata,
-        },
+    _run_generate_core(
+        task, session_dir, place_data, photo_paths, selected_review,
+        music_path, maps_url, card_config, industry_vibe,
+        extra_metadata={"photo_source": "google_photos"},
     )
 
 
