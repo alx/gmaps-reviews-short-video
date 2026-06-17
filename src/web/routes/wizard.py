@@ -413,8 +413,8 @@ def step2_submit():
             "duration": _float("card_intro_duration", 2.0),
         },
         "review": {
-            "enabled":  bool(request.form.get("card_review_enabled")),
-            "duration": _float("card_review_duration", 4.0),
+            "enabled": bool(request.form.get("card_review_enabled")),
+            "style":   request.form.get("review_style", "highlight"),
         },
         "map":    {
             "enabled":  bool(request.form.get("card_map_enabled")),

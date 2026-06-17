@@ -6,6 +6,7 @@ import {
   useVideoConfig,
 } from "remotion";
 import { CROSSFADE, type Palette } from "../Composition";
+import { StarRating } from "./StarRating";
 
 const countryFlag = (code: string) =>
   [...code.toUpperCase()]
@@ -39,9 +40,6 @@ export const IntroCard: React.FC<{
     to: 0,
   });
 
-  const stars =
-    "★".repeat(Math.round(rating)) + "☆".repeat(5 - Math.round(rating));
-
   const locationParts = [];
   if (city) locationParts.push(city);
   if (country) {
@@ -51,7 +49,6 @@ export const IntroCard: React.FC<{
 
   return (
     <AbsoluteFill style={{ opacity }}>
-      {/* Gradient overlay — heavier at bottom */}
       <AbsoluteFill
         style={{
           background:
@@ -75,23 +72,15 @@ export const IntroCard: React.FC<{
             color: "white",
             textAlign: "center",
             lineHeight: 1.1,
-            marginBottom: 28,
+            marginBottom: 36,
             fontFamily: "system-ui, -apple-system, sans-serif",
             textShadow: "0 4px 24px rgba(0,0,0,0.7)",
           }}
         >
           {businessName}
         </div>
-        <div
-          style={{
-            fontSize: 56,
-            color: palette.accent,
-            letterSpacing: 6,
-            marginBottom: 8,
-            textShadow: "0 2px 8px rgba(0,0,0,0.6)",
-          }}
-        >
-          {stars}
+        <div style={{ marginBottom: 16 }}>
+          <StarRating rating={rating} size={56} color={palette.accent} />
         </div>
         <div
           style={{

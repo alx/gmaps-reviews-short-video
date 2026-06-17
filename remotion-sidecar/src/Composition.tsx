@@ -9,6 +9,7 @@ import {
 } from "remotion";
 import { IntroCard } from "./cards/IntroCard";
 import { ReviewCard } from "./cards/ReviewCard";
+import { ReviewHighlight } from "./cards/ReviewHighlight";
 import { MapCard } from "./cards/MapCard";
 import { OutroCard } from "./cards/OutroCard";
 import { KenBurnsPhoto } from "./cards/KenBurnsPhoto";
@@ -36,6 +37,10 @@ export type InputProps = {
   musicUrl?: string;
   musicOffset?: number;
   industryVibe?: string;
+  reviewStyle?: "classic" | "highlight";
+  highlightPhrases?: string[];
+  ttsUrl?: string;
+  ttsDurationSeconds?: number | null;
   cards: {
     intro: { enabled: boolean };
     review: { enabled: boolean };
@@ -64,6 +69,10 @@ export const defaultProps: InputProps = {
   musicUrl: "",
   musicOffset: 0,
   industryVibe: "other",
+  reviewStyle: "highlight",
+  highlightPhrases: [],
+  ttsUrl: "",
+  ttsDurationSeconds: null,
   cards: {
     intro: { enabled: true },
     review: { enabled: true },
@@ -84,10 +93,16 @@ const CARD_FRAMES = {
 
 type CardEntry = { type: string; dur: number; from: number };
 
-function buildSequence(cards: InputProps["cards"]): CardEntry[] {
+function reviewDurFrames(ttsDurationSeconds?: number | null): number {
+  if (!ttsDurationSeconds) return CARD_FRAMES.review;
+  // pad by 0.5s so the last word isn't clipped by the crossfade
+  return Math.ceil((ttsDurationSeconds + 0.5) * FPS);
+}
+
+function buildSequence(cards: InputProps["cards"], reviewDur: number = CARD_FRAMES.review): CardEntry[] {
   const active: { type: string; dur: number }[] = [];
   if (cards.intro.enabled) active.push({ type: "intro", dur: CARD_FRAMES.intro });
-  if (cards.review.enabled) active.push({ type: "review", dur: CARD_FRAMES.review });
+  if (cards.review.enabled) active.push({ type: "review", dur: reviewDur });
   if (cards.map.enabled) active.push({ type: "map", dur: CARD_FRAMES.map });
   if (cards.outro.enabled) active.push({ type: "outro", dur: CARD_FRAMES.outro });
 
@@ -102,7 +117,8 @@ function buildSequence(cards: InputProps["cards"]): CardEntry[] {
 export const calculateMetadata: CalculateMetadataFunction<InputProps> = ({
   props,
 }) => {
-  const seq = buildSequence(props.cards);
+  const reviewDur = reviewDurFrames(props.ttsDurationSeconds);
+  const seq = buildSequence(props.cards, reviewDur);
   if (seq.length === 0) return { durationInFrames: FPS * 3, fps: FPS };
   const last = seq[seq.length - 1];
   const total = last.from + last.dur;
@@ -125,6 +141,10 @@ export const ReviewVideo: React.FC<InputProps> = (props) => {
     websiteUrl,
     mapsUrl,
     industryVibe,
+    reviewStyle = "highlight",
+    highlightPhrases = [],
+    ttsUrl,
+    ttsDurationSeconds,
   } = props;
 
   const palette: Palette = PALETTES[industryVibe ?? "other"] ?? PALETTES["other"];
@@ -142,12 +162,19 @@ export const ReviewVideo: React.FC<InputProps> = (props) => {
 
   const n = Math.min(photoUrls.length, 5);
   const photos = photoUrls.slice(0, n);
-  const clipDur =
-    n > 0
-      ? Math.round((durationInFrames + (n - 1) * CROSSFADE) / n)
-      : durationInFrames;
 
-  const sequences = buildSequence(cards);
+  const sequences = buildSequence(cards, reviewDurFrames(ttsDurationSeconds));
+  const reviewSeq = sequences.find((s) => s.type === "review");
+  const outroSeq = sequences.find((s) => s.type === "outro");
+
+  // Photos stop when the outro begins so they don't bleed through the outro's fade-out.
+  const photoEndFrame = outroSeq ? outroSeq.from : durationInFrames;
+  const photoClipDur =
+    n > 0
+      ? Math.round((photoEndFrame + (n - 1) * CROSSFADE) / n)
+      : photoEndFrame;
+
+  const DUCK_FRAMES = 15;
 
   return (
     <AbsoluteFill style={{ backgroundColor: "#000", opacity: globalOpacity }}>
@@ -155,8 +182,8 @@ export const ReviewVideo: React.FC<InputProps> = (props) => {
       {photos.map((url, i) => (
         <Sequence
           key={`photo-${i}`}
-          from={Math.round(i * (clipDur - CROSSFADE))}
-          durationInFrames={clipDur}
+          from={Math.round(i * (photoClipDur - CROSSFADE))}
+          durationInFrames={photoClipDur}
           layout="none"
         >
           <KenBurnsPhoto url={url} isFirst={i === 0} />
@@ -181,8 +208,15 @@ export const ReviewVideo: React.FC<InputProps> = (props) => {
               palette={palette}
             />
           )}
-          {seq.type === "review" && review && (
+          {seq.type === "review" && review && reviewStyle === "classic" && (
             <ReviewCard review={review} palette={palette} />
+          )}
+          {seq.type === "review" && review && reviewStyle === "highlight" && (
+            <ReviewHighlight
+              review={review}
+              palette={palette}
+              highlightPhrases={highlightPhrases}
+            />
           )}
           {seq.type === "map" && mapImageUrl && (
             <MapCard
@@ -206,17 +240,50 @@ export const ReviewVideo: React.FC<InputProps> = (props) => {
         </Sequence>
       ))}
 
-      {/* Background music — trimBefore skips the offset into the source;
-          Sequence bounds playback to the composition duration */}
+      {/* Background music — ducks during review card when TTS is active */}
       {musicUrl && (
         <Sequence from={0} durationInFrames={durationInFrames} layout="none">
           <Audio
             src={musicUrl}
             trimBefore={Math.round(musicOffset * fps)}
+            volume={(f) => {
+              const base = interpolate(
+                f,
+                [0, FADE, durationInFrames - FADE, durationInFrames],
+                [0, 1, 1, 0],
+                { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+              );
+              if (!ttsUrl || !reviewSeq) return base;
+              const duck = interpolate(
+                f,
+                [
+                  reviewSeq.from,
+                  reviewSeq.from + DUCK_FRAMES,
+                  reviewSeq.from + reviewSeq.dur - DUCK_FRAMES,
+                  reviewSeq.from + reviewSeq.dur,
+                ],
+                [1, 0.2, 0.2, 1],
+                { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+              );
+              return base * duck;
+            }}
+          />
+        </Sequence>
+      )}
+
+      {/* TTS voice — plays during review card */}
+      {ttsUrl && reviewSeq && (
+        <Sequence
+          from={reviewSeq.from}
+          durationInFrames={reviewSeq.dur}
+          layout="none"
+        >
+          <Audio
+            src={ttsUrl}
             volume={(f) =>
               interpolate(
                 f,
-                [0, FADE, durationInFrames - FADE, durationInFrames],
+                [0, FADE, reviewSeq.dur - FADE, reviewSeq.dur],
                 [0, 1, 1, 0],
                 { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
               )

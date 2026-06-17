@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 from .. import gmaps
 from .. import video as video_mod
+from .. import tts as tts_mod
 
 # ---------------------------------------------------------------------------
 # Sidecar helpers
@@ -41,6 +42,9 @@ def _build_input_props(
     card_config: dict | None,
     map_image_url: str,
     industry_vibe: str = "other",
+    tts_path: str | None = None,
+    highlight_phrases: list[str] | None = None,
+    tts_duration_seconds: float | None = None,
 ) -> dict:
     cfg = card_config or {}
     ci = cfg.get("intro", {})
@@ -62,6 +66,10 @@ def _build_input_props(
         "musicUrl": _asset_url(music_path) if music_path else "",
         "musicOffset": 0.0,
         "industryVibe": vibe,
+        "reviewStyle": cr.get("style", "highlight"),
+        "highlightPhrases": highlight_phrases or [],
+        "ttsUrl": _asset_url(tts_path) if tts_path else "",
+        "ttsDurationSeconds": tts_duration_seconds,
         "cards": {
             "intro":  {"enabled": bool(ci.get("enabled", True))},
             "review": {"enabled": bool(cr.get("enabled", True)) and bool(selected_review)},
@@ -214,11 +222,28 @@ def _run_generate_core(
         if result:
             map_image_url = _asset_url(map_path)
 
+    tts_path: str | None = None
+    highlight_phrases: list[str] = []
+    if selected_review and selected_review.get("text"):
+        review_text = selected_review["text"]
+        highlight_phrases = tts_mod.extract_highlight_phrases(review_text)
+        store.update(task.task_id, progress="Generating voice-over…", progress_pct=32)
+        tts_out = str(Path(session_dir) / "tts.mp3")
+        tts_path = tts_mod.generate_tts(review_text, tts_out)
+
+    tts_duration_seconds: float | None = None
+    if tts_path:
+        tts_duration_seconds = tts_mod.get_audio_duration_seconds(tts_path)
+        logger.info("[task:%s] tts duration=%.2fs", task.task_id[:8], tts_duration_seconds or 0)
+
     store.update(task.task_id, progress=f"Generating {industry_vibe}-style video…", progress_pct=40)
     output_path = str(Path(session_dir) / "video.mp4")
     input_props = _build_input_props(
         place_data, photo_paths, selected_review, music_path, maps_url, card_config,
         map_image_url, industry_vibe,
+        tts_path=tts_path,
+        highlight_phrases=highlight_phrases,
+        tts_duration_seconds=tts_duration_seconds,
     )
     try:
         _render_via_sidecar(task, input_props, output_path)

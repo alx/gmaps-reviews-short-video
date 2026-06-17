@@ -6,6 +6,7 @@ import {
   useVideoConfig,
 } from "remotion";
 import { CROSSFADE, type Palette } from "../Composition";
+import { StarRating } from "./StarRating";
 
 const TRUNCATE_CHARS = 140;
 
@@ -37,10 +38,6 @@ export const ReviewCard: React.FC<{
     to: 0,
   });
 
-  const stars =
-    "★".repeat(Math.min(5, Math.max(0, Math.round(review.rating)))) +
-    "☆".repeat(5 - Math.min(5, Math.max(0, Math.round(review.rating))));
-
   const author = review.author || "Customer";
 
   return (
@@ -52,7 +49,6 @@ export const ReviewCard: React.FC<{
         padding: "0 48px 180px",
       }}
     >
-      {/* Subtle bottom gradient so the card reads against any photo */}
       <AbsoluteFill
         style={{
           background:
@@ -74,7 +70,6 @@ export const ReviewCard: React.FC<{
           position: "relative",
         }}
       >
-        {/* Stars + author */}
         <div
           style={{
             display: "flex",
@@ -84,9 +79,7 @@ export const ReviewCard: React.FC<{
             flexWrap: "wrap",
           }}
         >
-          <span style={{ color: palette.accent, fontSize: 44, letterSpacing: 3 }}>
-            {stars}
-          </span>
+          <StarRating rating={review.rating} size={44} color={palette.accent} />
           <span
             style={{
               color: "rgba(255,255,255,0.65)",
@@ -97,7 +90,6 @@ export const ReviewCard: React.FC<{
             {author}
           </span>
         </div>
-        {/* Divider */}
         <div
           style={{
             height: 1,
@@ -105,7 +97,6 @@ export const ReviewCard: React.FC<{
             marginBottom: 28,
           }}
         />
-        {/* Review text */}
         <div
           style={{
             fontSize: 40,
