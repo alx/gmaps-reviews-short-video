@@ -18,7 +18,7 @@ const CHARS_PER_LINE = 32;
 const BLUR_CLEAR_FRAME = 30;
 
 const GOLD = "#C9952A";
-const LIGHT_GOLD = "#D4AF6A";
+const AUTHOR_COLOR = "#2d1f05";
 
 function wrapText(text: string): string[] {
   const words = text.split(" ");
@@ -42,33 +42,6 @@ function truncate(text: string): string {
   return text.slice(0, 140).split(" ").slice(0, -1).join(" ").trimEnd() + "…";
 }
 
-const BRACKET_SIZE = 40;
-const BRACKET_STROKE = 2.5;
-
-const CornerBracket: React.FC<{ rotation: number }> = ({ rotation }) => (
-  <svg
-    width={BRACKET_SIZE}
-    height={BRACKET_SIZE}
-    viewBox="0 0 40 40"
-    style={{
-      position: "absolute",
-      transform: `rotate(${rotation}deg)`,
-      ...(rotation === 0 && { top: 0, left: 0 }),
-      ...(rotation === 90 && { top: 0, right: 0 }),
-      ...(rotation === 180 && { bottom: 0, right: 0 }),
-      ...(rotation === 270 && { bottom: 0, left: 0 }),
-    }}
-  >
-    <path
-      d="M 36 4 L 4 4 L 4 36"
-      fill="none"
-      stroke={GOLD}
-      strokeWidth={BRACKET_STROKE}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
 
 export const ReviewHighlight: React.FC<{
   review: { text: string; rating: number; author: string };
@@ -139,7 +112,7 @@ export const ReviewHighlight: React.FC<{
           {/* White panel */}
           <div
             style={{
-              background: "rgba(255, 255, 255, 0.93)",
+              background: "rgba(255, 255, 255, 0.72)",
               borderRadius: 24,
               padding: "40px 60px 36px",
               boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
@@ -149,19 +122,8 @@ export const ReviewHighlight: React.FC<{
               gap: 36,
             }}
           >
-            {/* Testimonial text block with corner brackets */}
-            <div
-              style={{
-                position: "relative",
-                padding: "48px 64px",
-                textAlign: "center",
-              }}
-            >
-              <CornerBracket rotation={0} />
-              <CornerBracket rotation={90} />
-              <CornerBracket rotation={180} />
-              <CornerBracket rotation={270} />
-
+            {/* Testimonial text */}
+            <div style={{ textAlign: "center" }}>
               {lines.map((line, i) => (
                 <div
                   key={i}
@@ -179,23 +141,25 @@ export const ReviewHighlight: React.FC<{
               ))}
             </div>
 
-            {/* Stars + author */}
+            {/* Stars + author — single row, right-aligned */}
             <div
               style={{
                 display: "flex",
-                flexDirection: "column",
+                flexDirection: "row",
                 alignItems: "center",
+                justifyContent: "flex-end",
                 gap: 20,
+                width: "100%",
               }}
             >
-              <StarRating rating={review.rating} size={48} color={GOLD} />
+              <StarRating rating={review.rating} size={40} color={GOLD} />
               <span
                 style={{
-                  color: LIGHT_GOLD,
+                  color: AUTHOR_COLOR,
                   fontSize: 36,
                   fontFamily: MONTSERRAT,
-                  fontWeight: 300,
-                  letterSpacing: "0.04em",
+                  fontWeight: 700,
+                  letterSpacing: "0.02em",
                 }}
               >
                 {review.author || "Customer"}
