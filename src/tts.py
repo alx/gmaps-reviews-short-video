@@ -4,8 +4,9 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_PROJECT_ROOT = Path(__file__).parent.parent
-_MODEL_DIR = _PROJECT_ROOT  # kokoro-tts expects model files in cwd
+_KOKORO_MODEL_DIR = Path.home() / ".local" / "share" / "kokoro"
+_MODEL_FILE = _KOKORO_MODEL_DIR / "kokoro-v1.0.onnx"
+_VOICES_FILE = _KOKORO_MODEL_DIR / "voices-v1.0.bin"
 
 KOKORO_VOICE = "am_adam"
 
@@ -34,10 +35,11 @@ def generate_tts(text: str, output_path: str) -> str | None:
                 "--voice", KOKORO_VOICE,
                 "--format", "mp3",
                 "--lang", "en-us",
+                "--model", str(_MODEL_FILE),
+                "--voices", str(_VOICES_FILE),
             ],
             input=text.encode(),
             capture_output=True,
-            cwd=str(_MODEL_DIR),
             timeout=120,
         )
         if result.returncode != 0:
@@ -116,6 +118,6 @@ def _find_kokoro() -> str | None:
 
 
 def _check_models() -> tuple[bool, list[str]]:
-    required = ["kokoro-v1.0.onnx", "voices-v1.0.bin"]
-    missing = [f for f in required if not (_MODEL_DIR / f).exists()]
+    required = {"kokoro-v1.0.onnx": _MODEL_FILE, "voices-v1.0.bin": _VOICES_FILE}
+    missing = [name for name, path in required.items() if not path.exists()]
     return len(missing) == 0, missing
