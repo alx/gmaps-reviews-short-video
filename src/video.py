@@ -440,6 +440,29 @@ def make_title_card(
     return clip.with_mask(mask)
 
 
+def render_map_image(
+    lat: float,
+    lng: float,
+    output_path: str,
+    zoom: int = 15,
+) -> str | None:
+    """Render an OpenStreetMap PNG to disk (no text overlay). Returns path or None."""
+    try:
+        from staticmap import StaticMap, CircleMarker
+    except ImportError:
+        return None
+    try:
+        m = StaticMap(W, H, url_template=_OSM_CARTO)
+        m.add_marker(CircleMarker((lng, lat), "white", 28))
+        m.add_marker(CircleMarker((lng, lat), "#FF3333", 18))
+        img = m.render(zoom=zoom, center=[lng, lat])
+        img.convert("RGB").save(output_path, "PNG")
+        return output_path
+    except Exception as exc:
+        logger.warning("render_map_image failed: %s", exc)
+        return None
+
+
 def make_map_slide(
     lat: float,
     lng: float,

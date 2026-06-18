@@ -16,6 +16,7 @@ dependencies = [
     "werkzeug>=3.0",
     "gunicorn>=23.0",
     "timezonefinder>=6.0",
+    "honcho>=1.1",
 ]
 
 [project.scripts]

@@ -51,6 +51,28 @@
             <button type="button" class="btn-sample" onclick="document.getElementById('maps_url').value='https://maps.app.goo.gl/qtAadc4T23SA22Wx8'">Breeze Restaurant &amp; Basket Boat · Hoi An 🇻🇳</button>
           </div>
         </div>
+        <fieldset class="vibe-fieldset">
+          <legend>Business type</legend>
+          <div class="vibe-chips">
+            <label class="vibe-chip">
+              <input type="radio" name="industry_vibe" value="restaurant">
+              🍽️ Restaurant
+            </label>
+            <label class="vibe-chip">
+              <input type="radio" name="industry_vibe" value="medical">
+              🏥 Medical
+            </label>
+            <label class="vibe-chip">
+              <input type="radio" name="industry_vibe" value="retail">
+              🛒 Retail
+            </label>
+            <label class="vibe-chip">
+              <input type="radio" name="industry_vibe" value="other" checked>
+              ○ Other
+            </label>
+          </div>
+        </fieldset>
+
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
           <div>
             <button id="btn-auto" type="submit" class="btn btn-primary" style="width:100%;"

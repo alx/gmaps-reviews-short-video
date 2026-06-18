@@ -15,6 +15,7 @@
         hx-indicator="#generate-btn"
         hx-on::after-request="document.getElementById('generate-btn').disabled=true">
     <input type="hidden" name="fetch_task_id" value="{{ fetch_task_id }}">
+    <input type="hidden" name="industry_vibe" value="{{ industry_vibe }}">
 
     <!-- Reviews -->
     <div class="card">
@@ -209,13 +210,19 @@
             <input type="checkbox" name="card_review_enabled" value="1" checked>
             <span class="card-config-name">Review</span>
           </label>
-          <span class="card-config-desc muted">Selected customer review</span>
+          <span class="card-config-desc muted">
+            Selected customer review
+            <span class="card-outro-opts" style="margin-top:0.35rem">
+              <label class="card-toggle-inline">
+                <input type="radio" name="review_style" value="highlight" checked> Highlight
+              </label>
+              <label class="card-toggle-inline">
+                <input type="radio" name="review_style" value="classic"> Classic
+              </label>
+            </span>
+          </span>
           <div class="card-config-dur">
-            <input type="range" name="card_review_duration" value="4.0"
-                   min="0" max="10" step="0.5" class="dur-slider"
-                   oninput="this.nextElementSibling.textContent=this.value+'s'"
-                   aria-label="Review duration">
-            <span class="dur-val">4s</span>
+            <span class="dur-val" title="Duration is set automatically by the voice-over length">🎙️ Auto</span>
           </div>
         </div>
 

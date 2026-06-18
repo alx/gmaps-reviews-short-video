@@ -501,6 +501,25 @@ button.htmx-request { opacity: 0.7; pointer-events: none; }
 }
 .btn-play:hover { border-color: var(--accent); color: var(--accent); }
 
+/* ── Industry/vibe chip selector ─────────────── */
+.vibe-fieldset { border: none; padding: 0; margin: 0 0 1.1rem; }
+.vibe-fieldset legend { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.5rem; }
+.vibe-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.vibe-chip {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 14px; min-height: 44px;
+  border: 1.5px solid var(--border); border-radius: var(--radius);
+  background: var(--surface2); cursor: pointer;
+  font-size: 0.9rem; user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.vibe-chip input[type="radio"] { position: absolute; opacity: 0; width: 0; height: 0; }
+.vibe-chip:has(input:checked) { border-color: var(--accent); background: rgba(37,99,235,0.08); }
+.vibe-chip:hover { border-color: var(--accent); }
+@media (max-width: 480px) {
+  .vibe-chips { display: grid; grid-template-columns: 1fr 1fr; }
+}
+
 /* ── Optimistic step-3 metadata preview ────── */
 .section-label {
   font-size: 0.78rem; font-weight: 600; text-transform: uppercase;

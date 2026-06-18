@@ -7,7 +7,11 @@
   {% endif %}>
   <div class="card loading-card">
     <div class="block-label">⏳ Fetching Place Data</div>
+    {% if industry_vibe and industry_vibe != 'other' %}
+    <h2>Generating {{ industry_vibe }}-style video…</h2>
+    {% else %}
     <h2>Fetching place data…</h2>
+    {% endif %}
     <p class="muted" style="margin-bottom:1.25rem">
       Looking up the business, downloading photo previews.
     </p>
