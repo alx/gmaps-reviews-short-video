@@ -41,6 +41,9 @@ export type InputProps = {
   highlightPhrases?: string[];
   ttsUrl?: string;
   ttsDurationSeconds?: number | null;
+  tagline?: string;
+  titleFont?: string;
+  sunBleach?: boolean;
   cards: {
     intro: { enabled: boolean };
     review: { enabled: boolean };
@@ -73,6 +76,9 @@ export const defaultProps: InputProps = {
   highlightPhrases: [],
   ttsUrl: "",
   ttsDurationSeconds: null,
+  tagline: "",
+  titleFont: "PlayfairDisplay",
+  sunBleach: false,
   cards: {
     intro: { enabled: true },
     review: { enabled: true },
@@ -145,6 +151,9 @@ export const ReviewVideo: React.FC<InputProps> = (props) => {
     highlightPhrases = [],
     ttsUrl,
     ttsDurationSeconds,
+    tagline,
+    titleFont,
+    sunBleach = false,
   } = props;
 
   const palette: Palette = PALETTES[industryVibe ?? "other"] ?? PALETTES["other"];
@@ -186,7 +195,7 @@ export const ReviewVideo: React.FC<InputProps> = (props) => {
           durationInFrames={photoClipDur}
           layout="none"
         >
-          <KenBurnsPhoto url={url} isFirst={i === 0} />
+          <KenBurnsPhoto url={url} isFirst={i === 0} sunBleach={sunBleach} />
         </Sequence>
       ))}
 
@@ -206,6 +215,8 @@ export const ReviewVideo: React.FC<InputProps> = (props) => {
               country={country}
               countryCode={countryCode}
               palette={palette}
+              tagline={tagline}
+              titleFont={titleFont}
             />
           )}
           {seq.type === "review" && review && reviewStyle === "classic" && (

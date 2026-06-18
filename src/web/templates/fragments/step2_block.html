@@ -186,7 +186,14 @@
       </div>
 
       <!-- Panel: Classic (default) -->
-      <div id="panel-default" class="card-config-table">
+      <div id="panel-default">
+        <div class="card-style-opts" style="margin-bottom:1rem">
+          <label class="card-toggle-inline">
+            <input type="checkbox" name="sun_bleach" value="1">
+            ☀️ Sun-bleached filter <span class="muted">(subtle warm tone on all photos)</span>
+          </label>
+        </div>
+      <div class="card-config-table">
 
         <!-- Intro / Title card -->
         <div class="card-config-row">
@@ -201,6 +208,25 @@
                    oninput="this.nextElementSibling.textContent=this.value+'s'"
                    aria-label="Intro duration">
             <span class="dur-val">2s</span>
+          </div>
+        </div>
+        <div class="card-extra-opts">
+          <div class="form-group form-group-inline">
+            <label for="intro-title-font">Title font</label>
+            <select name="intro_title_font" id="intro-title-font">
+              <option value="PlayfairDisplay" selected>Playfair Display — clean &amp; formal</option>
+              <option value="Montserrat">Montserrat — modern sans</option>
+              <option value="DancingScript">Dancing Script — flowing script</option>
+              <option value="Pacifico">Pacifico — warm rounded</option>
+              <option value="Caveat">Caveat — raw handwritten</option>
+              <option value="GreatVibes">Great Vibes — refined calligraphy</option>
+            </select>
+          </div>
+          <div class="form-group form-group-inline">
+            <label for="intro-tagline">Tagline <span class="muted">(optional)</span></label>
+            <input type="text" name="intro_tagline" id="intro-tagline"
+                   placeholder="Leave blank to use industry default"
+                   maxlength="80">
           </div>
         </div>
 
@@ -269,6 +295,7 @@
         </div>
 
       </div>
+      </div><!-- /panel-default -->
 
       <!-- Panel: Scénographie 15s -->
       <div id="panel-15s" class="card-config-table" style="display:none">

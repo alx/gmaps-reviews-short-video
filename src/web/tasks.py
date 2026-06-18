@@ -32,6 +32,13 @@ def _asset_url(path: str) -> str:
 
 VALID_VIBES = {"restaurant", "medical", "retail", "other"}
 
+INDUSTRY_TAGLINES: dict[str, str] = {
+    "restaurant": "Authentic Flavors & Local Cuisine",
+    "medical":    "Trusted Care & Expert Wellness",
+    "retail":     "Curated Finds & Local Goods",
+    "other":      "",
+}
+
 
 def _build_input_props(
     place_data: dict,
@@ -54,6 +61,10 @@ def _build_input_props(
     cm = cfg.get("map", {})
     co = cfg.get("outro", {})
     vibe = industry_vibe if industry_vibe in VALID_VIBES else "other"
+    tagline_user = ci.get("tagline", "").strip()
+    tagline = tagline_user or INDUSTRY_TAGLINES.get(vibe, "")
+    title_font = ci.get("title_font", "PlayfairDisplay")
+    sun_bleach = bool(cfg.get("sun_bleach", False))
     return {
         "businessName": place_data["business_name"],
         "rating": float(place_data["rating"]),
@@ -74,6 +85,9 @@ def _build_input_props(
         "ttsDurationSeconds": tts_duration_seconds,
         "structure": structure,
         "reviews": reviews_list or ([selected_review] if selected_review else []),
+        "tagline": tagline,
+        "titleFont": title_font,
+        "sunBleach": sun_bleach,
         "cards": {
             "intro":  {"enabled": bool(ci.get("enabled", True))},
             "review": {"enabled": bool(cr.get("enabled", True)) and bool(selected_review)},

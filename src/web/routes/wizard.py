@@ -407,6 +407,12 @@ def step2_submit():
         except (ValueError, TypeError):
             return default
 
+    intro_tagline = request.form.get("intro_tagline", "").strip()
+    valid_fonts = {"PlayfairDisplay", "Montserrat", "DancingScript", "Pacifico", "Caveat", "GreatVibes"}
+    raw_font = request.form.get("intro_title_font", "PlayfairDisplay").strip()
+    intro_title_font = raw_font if raw_font in valid_fonts else "PlayfairDisplay"
+    sun_bleach = bool(request.form.get("sun_bleach"))
+
     structure = request.form.get("structure", "default")
     session["structure"] = structure
 
@@ -436,14 +442,17 @@ def step2_submit():
         }
     else:
         card_config = {
+            "sun_bleach": sun_bleach,
             "intro":  {
-                "enabled":  bool(request.form.get("card_intro_enabled")),
-                "duration": _float("card_intro_duration", 2.0),
+                "enabled":    bool(request.form.get("card_intro_enabled")),
+                "duration":   _float("card_intro_duration", 2.0),
+                "tagline":    intro_tagline,
+                "title_font": intro_title_font,
             },
             "review": {
-                "enabled": bool(request.form.get("card_review_enabled")),
+                "enabled":  bool(request.form.get("card_review_enabled")),
                 "duration": _float("card_review_duration", 4.0),
-                "style":   request.form.get("review_style", "highlight"),
+                "style":    request.form.get("review_style", "highlight"),
             },
             "map":    {
                 "enabled":  bool(request.form.get("card_map_enabled")),

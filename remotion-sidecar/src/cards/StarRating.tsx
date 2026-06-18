@@ -6,7 +6,7 @@ export const StarRating: React.FC<{
   size?: number;
   color?: string;
   emptyColor?: string;
-}> = ({ rating, size = 40, color = "#F59E0B", emptyColor = "rgba(255,255,255,0.3)" }) => {
+}> = ({ rating, size = 40, color = "#C9952A", emptyColor = "rgba(255,255,255,0.3)" }) => {
   return (
     <div style={{ display: "flex", gap: size * 0.12 }}>
       {Array.from({ length: 5 }, (_, i) => {

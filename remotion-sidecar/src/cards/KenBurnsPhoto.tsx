@@ -1,9 +1,10 @@
 import { AbsoluteFill, Img, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import { CROSSFADE } from "../Composition";
 
-export const KenBurnsPhoto: React.FC<{ url: string; isFirst: boolean }> = ({
+export const KenBurnsPhoto: React.FC<{ url: string; isFirst: boolean; sunBleach?: boolean }> = ({
   url,
   isFirst,
+  sunBleach = false,
 }) => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
@@ -18,8 +19,12 @@ export const KenBurnsPhoto: React.FC<{ url: string; isFirst: boolean }> = ({
         extrapolateRight: "clamp",
       });
 
+  const bleachFilter = sunBleach
+    ? "brightness(1.05) saturate(0.82) sepia(0.18)"
+    : undefined;
+
   return (
-    <AbsoluteFill style={{ opacity }}>
+    <AbsoluteFill style={{ opacity, filter: bleachFilter }}>
       <AbsoluteFill
         style={{
           transform: `scale(${scale})`,
