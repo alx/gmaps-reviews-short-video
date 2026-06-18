@@ -246,6 +246,7 @@ export const ReviewVideo: React.FC<InputProps> = (props) => {
               countryCode={countryCode}
               showQr={cards.outro.showQr}
               showWebsite={cards.outro.showWebsite}
+              titleFont={titleFont}
             />
           )}
         </Sequence>
