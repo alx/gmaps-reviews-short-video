@@ -101,8 +101,8 @@ type CardEntry = { type: string; dur: number; from: number };
 
 function reviewDurFrames(ttsDurationSeconds?: number | null): number {
   if (!ttsDurationSeconds) return CARD_FRAMES.review;
-  // pad by 0.5s so the last word isn't clipped by the crossfade
-  return Math.ceil((ttsDurationSeconds + 0.5) * FPS);
+  // pad by 1.5s: 0.5s crossfade + 1s buffer for mp3 encoder silence and measurement imprecision
+  return Math.ceil((ttsDurationSeconds + 1.5) * FPS);
 }
 
 function buildSequence(cards: InputProps["cards"], reviewDur: number = CARD_FRAMES.review): CardEntry[] {
