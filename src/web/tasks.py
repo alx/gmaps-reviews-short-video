@@ -40,6 +40,13 @@ INDUSTRY_TAGLINES: dict[str, str] = {
 }
 
 
+def _truncate_for_highlight(text: str) -> str:
+    """Mirror of ReviewHighlight.tsx truncate() — max 140 chars, word-boundary aware."""
+    if len(text) <= 140:
+        return text
+    return " ".join(text[:140].split(" ")[:-1]).rstrip() + "…"
+
+
 def _build_input_props(
     place_data: dict,
     photo_paths: list[str],
@@ -93,7 +100,7 @@ def _build_input_props(
         "cards": {
             "intro":  {"enabled": bool(ci.get("enabled", True))},
             "review": {"enabled": bool(cr.get("enabled", True)) and bool(selected_review)},
-            "map":    {"enabled": bool(cm.get("enabled", True)) and bool(map_image_url)},
+            "map":    {"enabled": bool(cm.get("enabled", False)) and bool(map_image_url)},
             "outro":  {
                 "enabled":     bool(co.get("enabled", True)),
                 "showQr":      bool(co.get("show_qr", True)),
@@ -240,7 +247,7 @@ def _run_generate_core(
     mini_map_url = ""
     lat = place_data.get("lat")
     lng = place_data.get("lng")
-    if cfg.get("map", {}).get("enabled", True) and lat and lng:
+    if cfg.get("map", {}).get("enabled", False) and lat and lng:
         store.update(task.task_id, progress="Rendering map…", progress_pct=25)
         map_path = str(Path(session_dir) / "map.png")
         result = video_mod.render_map_image(lat, lng, map_path)
@@ -256,10 +263,12 @@ def _run_generate_core(
     highlight_phrases: list[str] = []
     if selected_review and selected_review.get("text"):
         review_text = selected_review["text"]
-        highlight_phrases = tts_mod.extract_highlight_phrases(review_text)
+        review_style = cfg.get("review", {}).get("style", "highlight")
+        tts_text = _truncate_for_highlight(review_text) if review_style == "highlight" else review_text
+        highlight_phrases = tts_mod.extract_highlight_phrases(tts_text)
         store.update(task.task_id, progress="Generating voice-over…", progress_pct=32)
         tts_out = str(Path(session_dir) / "tts.mp3")
-        tts_path = tts_mod.generate_tts(review_text, tts_out)
+        tts_path = tts_mod.generate_tts(tts_text, tts_out)
 
     tts_duration_seconds: float | None = None
     if tts_path:
