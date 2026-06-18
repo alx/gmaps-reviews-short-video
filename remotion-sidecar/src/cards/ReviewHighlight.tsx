@@ -107,90 +107,100 @@ export const ReviewHighlight: React.FC<{
 
   return (
     <AbsoluteFill style={{ opacity }}>
+      {/* Top vignette only — lets photo show through in center and bottom */}
       <AbsoluteFill
         style={{
           background:
-            "linear-gradient(to top, rgba(0,0,0,0.70) 0%, rgba(0,0,0,0.25) 55%, transparent 100%)",
+            "linear-gradient(to bottom, rgba(0,0,0,0.30) 0%, transparent 35%)",
           pointerEvents: "none",
         }}
       />
 
+      {/* Content anchored to bottom */}
       <AbsoluteFill
         style={{
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          justifyContent: "center",
-          padding: "80px 90px",
-          perspective: "1200px",
+          justifyContent: "flex-end",
+          paddingBottom: 72,
           filter: `blur(${blur}px)`,
         }}
       >
+        {/* 3D tilt wrapper */}
         <div
           style={{
+            width: CONTAINER_W,
             transform: `scale(${scale}) rotateY(${rotateY}deg) rotateX(${rotateX}deg)`,
             transformStyle: "preserve-3d",
-            width: CONTAINER_W,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 48,
+            perspective: "1200px",
           }}
         >
-          {/* Testimonial text block with corner brackets */}
+          {/* White panel */}
           <div
             style={{
-              position: "relative",
-              padding: "48px 64px",
-              textAlign: "center",
-            }}
-          >
-            <CornerBracket rotation={0} />
-            <CornerBracket rotation={90} />
-            <CornerBracket rotation={180} />
-            <CornerBracket rotation={270} />
-
-            {lines.map((line, i) => (
-              <div
-                key={i}
-                style={{
-                  fontSize: FONT_SIZE,
-                  lineHeight: `${LINE_HEIGHT}px`,
-                  color: "rgba(255,252,240,0.95)",
-                  fontFamily: MONTSERRAT,
-                  fontWeight: 500,
-                  textShadow:
-                    "0 0 24px rgba(0,0,0,0.95), 0 2px 10px rgba(0,0,0,0.85)",
-                  whiteSpace: "pre",
-                }}
-              >
-                {line}
-              </div>
-            ))}
-          </div>
-
-          {/* Stars centered below text */}
-          <div
-            style={{
+              background: "rgba(255, 255, 255, 0.93)",
+              borderRadius: 24,
+              padding: "40px 60px 36px",
+              boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
-              gap: 20,
+              gap: 36,
             }}
           >
-            <StarRating rating={review.rating} size={48} color={GOLD} />
-            <span
+            {/* Testimonial text block with corner brackets */}
+            <div
               style={{
-                color: LIGHT_GOLD,
-                fontSize: 36,
-                fontFamily: MONTSERRAT,
-                fontWeight: 300,
-                textShadow: "0 2px 10px rgba(0,0,0,0.8)",
-                letterSpacing: "0.04em",
+                position: "relative",
+                padding: "48px 64px",
+                textAlign: "center",
               }}
             >
-              {review.author || "Customer"}
-            </span>
+              <CornerBracket rotation={0} />
+              <CornerBracket rotation={90} />
+              <CornerBracket rotation={180} />
+              <CornerBracket rotation={270} />
+
+              {lines.map((line, i) => (
+                <div
+                  key={i}
+                  style={{
+                    fontSize: FONT_SIZE,
+                    lineHeight: `${LINE_HEIGHT}px`,
+                    color: "#1c1a14",
+                    fontFamily: MONTSERRAT,
+                    fontWeight: 500,
+                    whiteSpace: "pre",
+                  }}
+                >
+                  {line}
+                </div>
+              ))}
+            </div>
+
+            {/* Stars + author */}
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 20,
+              }}
+            >
+              <StarRating rating={review.rating} size={48} color={GOLD} />
+              <span
+                style={{
+                  color: LIGHT_GOLD,
+                  fontSize: 36,
+                  fontFamily: MONTSERRAT,
+                  fontWeight: 300,
+                  letterSpacing: "0.04em",
+                }}
+              >
+                {review.author || "Customer"}
+              </span>
+            </div>
           </div>
         </div>
       </AbsoluteFill>
