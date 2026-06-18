@@ -1184,7 +1184,7 @@ def build_video(
 
     include_intro  = bool(ci.get("enabled", True))
     include_review = bool(cr.get("enabled", True))
-    include_map    = bool(cm.get("enabled", True))
+    include_map    = bool(co.get("show_map", cm.get("enabled", True)))
     include_outro  = bool(co.get("enabled", True))
     show_qr        = bool(co.get("show_qr", True))
     show_website   = bool(co.get("show_website", True))

@@ -252,24 +252,6 @@
           </div>
         </div>
 
-        <!-- Map slide (only when location data is available) -->
-        {% if has_location %}
-        <div class="card-config-row">
-          <label class="card-toggle-label">
-            <input type="checkbox" name="card_map_enabled" value="1" checked>
-            <span class="card-config-name">Map</span>
-          </label>
-          <span class="card-config-desc muted">Location map with pin</span>
-          <div class="card-config-dur">
-            <input type="range" name="card_map_duration" value="3.0"
-                   min="0" max="10" step="0.5" class="dur-slider"
-                   oninput="this.nextElementSibling.textContent=this.value+'s'"
-                   aria-label="Map duration">
-            <span class="dur-val">3s</span>
-          </div>
-        </div>
-        {% endif %}
-
         <!-- Outro card -->
         <div class="card-config-row">
           <label class="card-toggle-label">
@@ -283,6 +265,10 @@
                 <input type="checkbox" name="card_outro_qr" value="1" checked>QR code</label>
               <label class="card-toggle-inline">
                 <input type="checkbox" name="card_outro_website" value="1" checked>Website URL</label>
+              {% if has_location %}
+              <label class="card-toggle-inline">
+                <input type="checkbox" name="card_outro_map" value="1" checked>Map</label>
+              {% endif %}
             </span>
           </span>
           <div class="card-config-dur">

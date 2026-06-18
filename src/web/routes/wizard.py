@@ -454,15 +454,12 @@ def step2_submit():
                 "duration": _float("card_review_duration", 4.0),
                 "style":    request.form.get("review_style", "highlight"),
             },
-            "map":    {
-                "enabled":  bool(request.form.get("card_map_enabled")),
-                "duration": _float("card_map_duration", 3.0),
-            },
             "outro":  {
                 "enabled":      bool(request.form.get("card_outro_enabled")),
                 "duration":     _float("card_outro_duration", 5.0),
                 "show_qr":      bool(request.form.get("card_outro_qr")),
                 "show_website": bool(request.form.get("card_outro_website")),
+                "show_map":     bool(request.form.get("card_outro_map")),
             },
         }
     session["card_config"] = card_config
