@@ -1,0 +1,14 @@
+[Unit]
+Description=Google Maps Reviews Short Video Web App
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/alx/code/gmaps-reviews-short-video
+EnvironmentFile=/home/alx/code/gmaps-reviews-short-video/.env
+ExecStart=/home/alx/.local/bin/uv run gmaps-web
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

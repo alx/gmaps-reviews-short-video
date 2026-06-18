@@ -51,6 +51,12 @@ def github_webhook():
 
     def _pull():
         try:
+            # Capture which files changed so we know what to rebuild
+            before = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=project_root, capture_output=True, text=True,
+            ).stdout.strip()
+
             r = subprocess.run(
                 ["git", "pull", "origin", "main"],
                 cwd=project_root,
@@ -58,14 +64,62 @@ def github_webhook():
                 text=True,
                 timeout=60,
             )
-            if r.returncode == 0:
-                logger.info("git pull succeeded: %s", r.stdout.strip())
-                # Gracefully reload gunicorn workers so Python code changes take effect
-                _reload_gunicorn(project_root)
-            else:
+            if r.returncode != 0:
                 logger.error("git pull failed (rc=%d): %s %s", r.returncode, r.stdout, r.stderr)
+                return
+
+            logger.info("git pull succeeded: %s", r.stdout.strip())
+
+            after = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=project_root, capture_output=True, text=True,
+            ).stdout.strip()
+
+            changed = subprocess.run(
+                ["git", "diff", "--name-only", before, after],
+                cwd=project_root, capture_output=True, text=True,
+            ).stdout.splitlines()
+
+            sidecar_lock_changed = any(
+                f.startswith("remotion-sidecar/package") for f in changed
+            )
+            sidecar_src_changed = any(
+                f.startswith("remotion-sidecar/") for f in changed
+            )
+
+            if sidecar_lock_changed:
+                _npm_install(project_root)
+
+            if sidecar_src_changed or sidecar_lock_changed:
+                _restart_sidecar()
+
+            _reload_gunicorn(project_root)
         except Exception as exc:
             logger.exception("git pull error: %s", exc)
+
+    def _npm_install(cwd: str):
+        sidecar_dir = Path(cwd) / "remotion-sidecar"
+        r = subprocess.run(
+            ["npm", "install"],
+            cwd=str(sidecar_dir),
+            capture_output=True, text=True, timeout=120,
+        )
+        if r.returncode == 0:
+            logger.info("npm install succeeded")
+        else:
+            logger.error("npm install failed: %s %s", r.stdout, r.stderr)
+
+    def _restart_sidecar():
+        uid = os.getuid()
+        env = {**os.environ, "XDG_RUNTIME_DIR": f"/run/user/{uid}"}
+        r = subprocess.run(
+            ["systemctl", "--user", "restart", "remotion-sidecar"],
+            capture_output=True, text=True, env=env,
+        )
+        if r.returncode == 0:
+            logger.info("remotion-sidecar restarted")
+        else:
+            logger.error("remotion-sidecar restart failed: %s %s", r.stdout, r.stderr)
 
     def _reload_gunicorn(cwd: str):
         pid_file = Path(cwd) / "gunicorn.pid"

@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block title %}Output — ReviewReel{% endblock %}
+
+{% block content %}
+<style>
+  .output-header {
+    padding: 2.5rem 0 1.5rem;
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+  }
+  .output-header h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .output-count {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+  .output-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--surface);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,.08);
+  }
+  .output-table th {
+    text-align: left;
+    padding: 0.65rem 1rem;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+  .output-table td {
+    padding: 0.7rem 1rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .output-table tr:last-child td { border-bottom: none; }
+  .output-table tbody tr.file-row { cursor: pointer; }
+  .output-table tbody tr.file-row:hover td { background: var(--surface2); }
+  .file-name {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 500;
+    font-size: 0.9rem;
+    word-break: break-all;
+  }
+  .file-name svg { flex-shrink: 0; color: var(--accent); }
+  .file-meta { font-size: 0.83rem; color: var(--text-muted); white-space: nowrap; }
+  .dl-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.7rem;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.8rem;
+    color: var(--text);
+    cursor: pointer;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background 0.12s;
+  }
+  .dl-btn:hover { background: var(--border); text-decoration: none; color: var(--text); }
+  .player-row td {
+    padding: 0;
+    border-bottom: 2px solid var(--accent);
+  }
+  .player-row video {
+    display: block;
+    width: 100%;
+    max-height: 70vh;
+    background: #000;
+  }
+  .empty-state {
+    padding: 3rem 1rem;
+    text-align: center;
+    color: var(--text-muted);
+  }
+</style>
+
+<div class="output-header">
+  <h1>Output</h1>
+  <span class="output-count">{{ entries|length }} video{{ 's' if entries|length != 1 else '' }}</span>
+</div>
+
+{% if entries %}
+<table class="output-table">
+  <thead>
+    <tr>
+      <th>File</th>
+      <th>Size</th>
+      <th>Modified</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for e in entries %}
+    <tr class="file-row" data-src="{{ url_for('output.serve_file', filename=e.name) }}" onclick="togglePlayer(this)">
+      <td>
+        <span class="file-name">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          {{ e.name }}
+        </span>
+      </td>
+      <td><span class="file-meta">{{ e.size }}</span></td>
+      <td><span class="file-meta" title="{{ e.mtime.strftime('%Y-%m-%d %H:%M') }}">{{ e.mtime_rel }}</span></td>
+      <td>
+        <a class="dl-btn" href="{{ url_for('output.serve_file', filename=e.name) }}?dl=1" onclick="event.stopPropagation()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download
+        </a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty-state">No MP4 files in output directory.</div>
+{% endif %}
+
+<script>
+var _activeRow = null;
+
+function togglePlayer(row) {
+  var src = row.dataset.src;
+
+  // If clicking the already-open row, close it
+  if (_activeRow && _activeRow.fileRow === row) {
+    _activeRow.playerRow.remove();
+    _activeRow = null;
+    return;
+  }
+
+  // Close any open player
+  if (_activeRow) {
+    _activeRow.playerRow.remove();
+    _activeRow = null;
+  }
+
+  // Insert player row after the clicked row
+  var tr = document.createElement('tr');
+  tr.className = 'player-row';
+  var td = document.createElement('td');
+  td.setAttribute('colspan', '4');
+  var video = document.createElement('video');
+  video.controls = true;
+  video.autoplay = true;
+  video.src = src;
+  td.appendChild(video);
+  tr.appendChild(td);
+  row.after(tr);
+
+  _activeRow = { fileRow: row, playerRow: tr };
+
+  // Scroll player into view
+  setTimeout(function() {
+    tr.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 60);
+}
+</script>
+{% endblock %}

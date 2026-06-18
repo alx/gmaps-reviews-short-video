@@ -1,0 +1,14 @@
+[Unit]
+Description=Remotion Sidecar Render Server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/alx/code/gmaps-reviews-short-video/remotion-sidecar
+Environment=PATH=/home/alx/.nvm/versions/node/v22.19.0/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/home/alx/.nvm/versions/node/v22.19.0/bin/node server.mjs
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

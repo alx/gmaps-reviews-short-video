@@ -92,6 +92,7 @@ def create_app(config: dict | None = None) -> Flask:
     workspace = project_root / "web_workspace"
     workspace.mkdir(exist_ok=True)
     app.config["WORKSPACE_DIR"] = str(workspace)
+    app.config["OUTPUT_DIR"] = str(project_root / "output")
 
     app.jinja_env.filters["urlencode"] = quote_plus
 
@@ -119,11 +120,13 @@ def create_app(config: dict | None = None) -> Flask:
     from .routes.media import media_bp
     from .routes.gphotos_oauth import gp_oauth
     from .routes.webhook import webhook
+    from .routes.output import output_bp
 
     app.register_blueprint(wizard)
     app.register_blueprint(media_bp)
     app.register_blueprint(gp_oauth)
     app.register_blueprint(webhook)
+    app.register_blueprint(output_bp)
 
     if yt_enabled:
         from .routes.youtube_oauth import yt_oauth
