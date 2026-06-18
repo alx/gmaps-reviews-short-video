@@ -17,6 +17,8 @@ dependencies = [
     "gunicorn>=23.0",
     "timezonefinder>=6.0",
     "honcho>=1.1",
+    "anthropic>=0.40",
+    "manim>=0.20.1",
 ]
 
 [project.scripts]
@@ -24,6 +26,8 @@ gmaps-reviews-short-video = "src.main:main"
 gmaps-publish = "src.publish:main"
 gmaps-web = "src.web.app:run_prod"
 gmaps-geojson-to-youtube = "src.geojson_to_youtube:main"
+gmaps-companion = "src.companion:main"
+gmaps-monte-alban = "src.monte_alban_batch:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
