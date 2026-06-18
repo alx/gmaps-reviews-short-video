@@ -440,6 +440,34 @@ def make_title_card(
     return clip.with_mask(mask)
 
 
+_CARTO_DARK = "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"
+
+MINI_MAP_SIZE = 608  # rendered at 2× (304 CSS px) for sharp display
+
+
+def render_mini_map(
+    lat: float,
+    lng: float,
+    output_path: str,
+    zoom: int = 16,
+) -> str | None:
+    """Render an OSM neighbourhood map at walkable scale. Returns path or None."""
+    try:
+        from staticmap import StaticMap, CircleMarker
+    except ImportError:
+        return None
+    try:
+        m = StaticMap(MINI_MAP_SIZE, MINI_MAP_SIZE, url_template=_OSM_CARTO)
+        m.add_marker(CircleMarker((lng, lat), "white", 22))
+        m.add_marker(CircleMarker((lng, lat), "#E63939", 14))
+        img = m.render(zoom=zoom, center=[lng, lat])
+        img.convert("RGB").save(output_path, "PNG")
+        return output_path
+    except Exception as exc:
+        logger.warning("render_mini_map failed: %s", exc)
+        return None
+
+
 def render_map_image(
     lat: float,
     lng: float,

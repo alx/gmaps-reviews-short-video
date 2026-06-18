@@ -54,6 +54,7 @@ def _build_input_props(
     tts_duration_seconds: float | None = None,
     structure: str = "default",
     reviews_list: list[dict] | None = None,
+    mini_map_url: str = "",
 ) -> dict:
     cfg = card_config or {}
     ci = cfg.get("intro", {})
@@ -76,6 +77,7 @@ def _build_input_props(
         "review": selected_review if selected_review else None,
         "photoUrls": [_asset_url(p) for p in photo_paths],
         "mapImageUrl": map_image_url,
+        "miniMapUrl": mini_map_url,
         "musicUrl": _asset_url(music_path) if music_path else "",
         "musicOffset": 0.0,
         "industryVibe": vibe,
@@ -235,12 +237,20 @@ def _run_generate_core(
 
     cfg = card_config or {}
     map_image_url = ""
-    if cfg.get("map", {}).get("enabled", True) and place_data.get("lat") and place_data.get("lng"):
+    mini_map_url = ""
+    lat = place_data.get("lat")
+    lng = place_data.get("lng")
+    if cfg.get("map", {}).get("enabled", True) and lat and lng:
         store.update(task.task_id, progress="Rendering map…", progress_pct=25)
         map_path = str(Path(session_dir) / "map.png")
-        result = video_mod.render_map_image(place_data["lat"], place_data["lng"], map_path)
+        result = video_mod.render_map_image(lat, lng, map_path)
         if result:
             map_image_url = _asset_url(map_path)
+    if lat and lng:
+        mini_map_path = str(Path(session_dir) / "mini_map.png")
+        result = video_mod.render_mini_map(lat, lng, mini_map_path)
+        if result:
+            mini_map_url = _asset_url(mini_map_path)
 
     tts_path: str | None = None
     highlight_phrases: list[str] = []
@@ -266,6 +276,7 @@ def _run_generate_core(
         tts_duration_seconds=tts_duration_seconds,
         structure=structure,
         reviews_list=reviews_list,
+        mini_map_url=mini_map_url,
     )
     try:
         _render_via_sidecar(task, input_props, output_path)

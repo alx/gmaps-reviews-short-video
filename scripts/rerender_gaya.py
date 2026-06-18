@@ -14,6 +14,10 @@ SESSION_DIR = PROJECT_ROOT / "web_workspace" / "sessions" / SESSION_ID
 SIDECAR_BASE = "http://127.0.0.1:3001"
 SIDECAR_DIR = PROJECT_ROOT / "remotion-sidecar"
 
+# Gaya coordinates (extracted from maps URL — not stored in session metadata)
+GAYA_LAT = 9.4693212
+GAYA_LNG = 100.0491771
+
 
 def restart_sidecar() -> subprocess.Popen:
     """Kill any running sidecar, start a fresh one, and wait until it's ready."""
@@ -86,6 +90,15 @@ def main() -> None:
     map_png = SESSION_DIR / "map.png"
     map_image_url = asset_url(map_png) if map_png.exists() else ""
 
+    mini_map_png = SESSION_DIR / "mini_map.png"
+    if not mini_map_png.exists():
+        sys.path.insert(0, str(PROJECT_ROOT))
+        from src import video as video_mod
+        print("Generating mini-map (OSM, zoom 16)…")
+        video_mod.render_mini_map(GAYA_LAT, GAYA_LNG, str(mini_map_png))
+    mini_map_url = asset_url(mini_map_png) if mini_map_png.exists() else ""
+    print(f"Mini-map: {'OK' if mini_map_url else 'MISSING'}")
+
     tts_mp3 = SESSION_DIR / "tts.mp3"
     tts_url = asset_url(tts_mp3) if tts_mp3.exists() else ""
     tts_duration = get_audio_duration(tts_mp3) if tts_mp3.exists() else None
@@ -106,6 +119,7 @@ def main() -> None:
         "review": review,
         "photoUrls": [asset_url(p) for p in photo_paths],
         "mapImageUrl": map_image_url,
+        "miniMapUrl": mini_map_url,
         "musicUrl": asset_url(music_path) if music_path else "",
         "musicOffset": 0.0,
         "industryVibe": meta.get("industry_vibe", "other"),

@@ -34,6 +34,7 @@ export type InputProps = {
   review?: { text: string; rating: number; author: string } | null;
   photoUrls: string[];
   mapImageUrl?: string;
+  miniMapUrl?: string;
   musicUrl?: string;
   musicOffset?: number;
   industryVibe?: string;
@@ -139,6 +140,7 @@ export const ReviewVideo: React.FC<InputProps> = (props) => {
     cards,
     review,
     mapImageUrl,
+    miniMapUrl,
     businessName,
     rating,
     city,
@@ -241,6 +243,7 @@ export const ReviewVideo: React.FC<InputProps> = (props) => {
               businessName={businessName}
               websiteUrl={websiteUrl}
               mapsUrl={mapsUrl}
+              miniMapUrl={miniMapUrl}
               city={city}
               country={country}
               countryCode={countryCode}

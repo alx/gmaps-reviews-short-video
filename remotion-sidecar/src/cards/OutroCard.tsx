@@ -33,43 +33,6 @@ const GOLD = "#C9952A";
 const GOLD_MUTED = "#B8943E";
 const OFF_WHITE = "#F5F0E8";
 
-const BRACKET_SIZE = 44;
-const BRACKET_STROKE = 2.5;
-
-const CornerBracket: React.FC<{ rotation: number }> = ({ rotation }) => (
-  <svg
-    width={BRACKET_SIZE}
-    height={BRACKET_SIZE}
-    viewBox="0 0 40 40"
-    style={{
-      position: "absolute",
-      transform: `rotate(${rotation}deg)`,
-      ...(rotation === 0 && { top: 0, left: 0 }),
-      ...(rotation === 90 && { top: 0, right: 0 }),
-      ...(rotation === 180 && { bottom: 0, right: 0 }),
-      ...(rotation === 270 && { bottom: 0, left: 0 }),
-    }}
-  >
-    <path
-      d="M 36 4 L 4 4 L 4 36"
-      fill="none"
-      stroke={GOLD}
-      strokeWidth={BRACKET_STROKE}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
-const CornerBrackets: React.FC = () => (
-  <>
-    <CornerBracket rotation={0} />
-    <CornerBracket rotation={90} />
-    <CornerBracket rotation={180} />
-    <CornerBracket rotation={270} />
-  </>
-);
-
 const MapPinIcon: React.FC = () => (
   <svg width="26" height="32" viewBox="0 0 26 32" fill="none">
     <path
@@ -173,6 +136,7 @@ export const OutroCard: React.FC<{
   businessName: string;
   websiteUrl?: string;
   mapsUrl?: string;
+  miniMapUrl?: string;
   city?: string;
   country?: string;
   countryCode?: string;
@@ -183,6 +147,7 @@ export const OutroCard: React.FC<{
   businessName,
   websiteUrl,
   mapsUrl,
+  miniMapUrl,
   city,
   country,
   countryCode,
@@ -232,60 +197,155 @@ export const OutroCard: React.FC<{
           "linear-gradient(160deg, #0d1b2a 0%, #1a1628 55%, #251e18 100%)",
       }}
     >
-      {/* Linen texture overlay */}
-      <AbsoluteFill style={{ pointerEvents: "none" }}>
-        <svg
-          width="100%"
-          height="100%"
-          style={{ position: "absolute", top: 0, left: 0 }}
-        >
-          <defs>
-            <filter id="linen-noise" x="0%" y="0%" width="100%" height="100%">
-              <feTurbulence
-                type="fractalNoise"
-                baseFrequency="0.68"
-                numOctaves="4"
-                stitchTiles="stitch"
-              />
-              <feColorMatrix type="saturate" values="0" />
-            </filter>
-          </defs>
-          <rect
-            width="100%"
-            height="100%"
-            filter="url(#linen-noise)"
-            opacity="0.048"
-          />
-        </svg>
-      </AbsoluteFill>
-
-      <div
-        style={{
-          transform: `translateY(${translateY}px)`,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "100%",
-          gap: 20,
-          padding: "48px 80px",
-        }}
-      >
-        {/* Business name — animated gold shimmer + corner brackets */}
+      {miniMapUrl ? (
+        /* Three-zone layout: top text | map | QR */
         <div
           style={{
-            position: "relative",
-            padding: "24px 52px",
-            textAlign: "center",
+            transform: `translateY(${translateY}px)`,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "space-between",
+            height: "100%",
+            padding: "48px 80px",
           }}
         >
-          <CornerBrackets />
+          {/* TOP: business name + location + website */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 12,
+              marginTop: 40,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 76,
+                fontWeight: 700,
+                fontFamily: titleFontFamily,
+                lineHeight: 1.15,
+                textAlign: "center",
+                background:
+                  "linear-gradient(105deg, #7a5c18 0%, #c9952a 22%, #f5d98b 50%, #c9952a 78%, #7a5c18 100%)",
+                backgroundSize: "200% 100%",
+                backgroundPosition: `${shimmerPos}% 0`,
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }}
+            >
+              {businessName}
+            </div>
+            {locationLine && (
+              <div
+                style={{
+                  fontSize: 32,
+                  color: "rgba(205,185,140,0.72)",
+                  textAlign: "center",
+                  fontFamily: "Montserrat, system-ui, sans-serif",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                {locationLine}
+              </div>
+            )}
+            {hasWebsite && (
+              <div
+                style={{
+                  fontSize: 27,
+                  color: GOLD_MUTED,
+                  textAlign: "center",
+                  fontFamily: "Montserrat, system-ui, sans-serif",
+                  letterSpacing: "0.04em",
+                  opacity: 0.82,
+                }}
+              >
+                {websiteUrl!.length > 44
+                  ? websiteUrl!.slice(0, 41) + "…"
+                  : websiteUrl}
+              </div>
+            )}
+          </div>
+
+          {/* MIDDLE: map as large as possible */}
+          <div
+            style={{
+              width: 920,
+              height: 920,
+              borderRadius: 24,
+              overflow: "hidden",
+              boxShadow:
+                "0 12px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(201,149,42,0.22)",
+            }}
+          >
+            <img
+              src={miniMapUrl}
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            />
+          </div>
+
+          {/* BOTTOM: QR + "scan to visit" */}
+          {hasQr && (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 14,
+                marginBottom: 40,
+              }}
+            >
+              <div
+                style={{
+                  padding: 22,
+                  background: "rgba(8,6,18,0.88)",
+                  borderRadius: 20,
+                  boxShadow:
+                    "0 8px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,149,42,0.18)",
+                }}
+              >
+                <RoundedQR value={mapsUrl!} size={320} initial={initial} />
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  fontSize: 24,
+                  color: "rgba(215,195,145,0.85)",
+                  fontFamily: "Montserrat, system-ui, sans-serif",
+                  fontWeight: 500,
+                }}
+              >
+                <MapPinIcon />
+                Scan to visit us
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Fallback: centered layout when no map */
+        <div
+          style={{
+            transform: `translateY(${translateY}px)`,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100%",
+            gap: 20,
+            padding: "48px 80px",
+          }}
+        >
           <div
             style={{
               fontSize: 76,
               fontWeight: 700,
               fontFamily: titleFontFamily,
               lineHeight: 1.15,
+              textAlign: "center",
               background:
                 "linear-gradient(105deg, #7a5c18 0%, #c9952a 22%, #f5d98b 50%, #c9952a 78%, #7a5c18 100%)",
               backgroundSize: "200% 100%",
@@ -297,105 +357,74 @@ export const OutroCard: React.FC<{
           >
             {businessName}
           </div>
-        </div>
-
-        {/* Location */}
-        {locationLine && (
-          <div
-            style={{
-              fontSize: 32,
-              color: "rgba(205,185,140,0.72)",
-              textAlign: "center",
-              fontFamily: "Montserrat, system-ui, sans-serif",
-              letterSpacing: "0.05em",
-            }}
-          >
-            {locationLine}
-          </div>
-        )}
-
-        {/* Website URL */}
-        {hasWebsite && (
-          <div
-            style={{
-              fontSize: 27,
-              color: GOLD_MUTED,
-              textAlign: "center",
-              fontFamily: "Montserrat, system-ui, sans-serif",
-              letterSpacing: "0.04em",
-              opacity: 0.82,
-            }}
-          >
-            {websiteUrl!.length > 44
-              ? websiteUrl!.slice(0, 41) + "…"
-              : websiteUrl}
-          </div>
-        )}
-
-        {/* QR code + CTA */}
-        {hasQr && (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 18,
-              marginTop: 8,
-            }}
-          >
+          {locationLine && (
             <div
               style={{
-                position: "relative",
-                padding: 26,
-                background: "rgba(8,6,18,0.88)",
-                borderRadius: 20,
-                boxShadow:
-                  "0 8px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,149,42,0.18)",
+                fontSize: 32,
+                color: "rgba(205,185,140,0.72)",
+                textAlign: "center",
+                fontFamily: "Montserrat, system-ui, sans-serif",
+                letterSpacing: "0.05em",
               }}
             >
-              <CornerBrackets />
-              <RoundedQR value={mapsUrl!} size={320} initial={initial} />
+              {locationLine}
             </div>
-
+          )}
+          {hasWebsite && (
+            <div
+              style={{
+                fontSize: 27,
+                color: GOLD_MUTED,
+                textAlign: "center",
+                fontFamily: "Montserrat, system-ui, sans-serif",
+                letterSpacing: "0.04em",
+                opacity: 0.82,
+              }}
+            >
+              {websiteUrl!.length > 44
+                ? websiteUrl!.slice(0, 41) + "…"
+                : websiteUrl}
+            </div>
+          )}
+          {hasQr && (
             <div
               style={{
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                gap: 10,
+                gap: 14,
+                marginTop: 8,
               }}
             >
               <div
                 style={{
+                  padding: 22,
+                  background: "rgba(8,6,18,0.88)",
+                  borderRadius: 20,
+                  boxShadow:
+                    "0 8px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,149,42,0.18)",
+                }}
+              >
+                <RoundedQR value={mapsUrl!} size={320} initial={initial} />
+              </div>
+              <div
+                style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 10,
-                  fontSize: 28,
+                  gap: 8,
+                  fontSize: 24,
                   color: "rgba(215,195,145,0.85)",
                   fontFamily: "Montserrat, system-ui, sans-serif",
                   fontWeight: 500,
                 }}
               >
                 <MapPinIcon />
-                Find us on Google Maps
-              </div>
-              <div
-                style={{
-                  fontSize: 22,
-                  color: GOLD_MUTED,
-                  fontFamily: "Montserrat, system-ui, sans-serif",
-                  fontWeight: 400,
-                  letterSpacing: "0.09em",
-                  textTransform: "uppercase",
-                  opacity: 0.72,
-                }}
-              >
-                Scan to Visit Us Online
+                Scan to visit us
               </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </AbsoluteFill>
   );
 };
