@@ -5,16 +5,20 @@ import {
   useVideoConfig,
 } from "remotion";
 import { useMemo } from "react";
-import rough from "roughjs";
+import { loadFont } from "@remotion/google-fonts/Montserrat";
 import { CROSSFADE, type Palette } from "../Composition";
 import { StarRating } from "./StarRating";
+
+const { fontFamily: MONTSERRAT } = loadFont();
 
 const CONTAINER_W = 900;
 const FONT_SIZE = 54;
 const LINE_HEIGHT = 82;
 const CHARS_PER_LINE = 32;
 const BLUR_CLEAR_FRAME = 30;
-const HIGHLIGHT_END_FRAME = 68;
+
+const GOLD = "#C9952A";
+const LIGHT_GOLD = "#D4AF6A";
 
 function wrapText(text: string): string[] {
   const words = text.split(" ");
@@ -33,22 +37,44 @@ function wrapText(text: string): string[] {
   return lines;
 }
 
-function firstSentenceFallback(text: string): string[] {
-  const m = text.match(/^[^.!?]+[.!?]?/);
-  const sentence = (m ? m[0] : text).trim();
-  return [sentence.split(" ").slice(0, 4).join(" ")];
-}
-
 function truncate(text: string): string {
   if (text.length <= 140) return text;
   return text.slice(0, 140).split(" ").slice(0, -1).join(" ").trimEnd() + "…";
 }
 
+const BRACKET_SIZE = 40;
+const BRACKET_STROKE = 2.5;
+
+const CornerBracket: React.FC<{ rotation: number }> = ({ rotation }) => (
+  <svg
+    width={BRACKET_SIZE}
+    height={BRACKET_SIZE}
+    viewBox="0 0 40 40"
+    style={{
+      position: "absolute",
+      transform: `rotate(${rotation}deg)`,
+      ...(rotation === 0 && { top: 0, left: 0 }),
+      ...(rotation === 90 && { top: 0, right: 0 }),
+      ...(rotation === 180 && { bottom: 0, right: 0 }),
+      ...(rotation === 270 && { bottom: 0, left: 0 }),
+    }}
+  >
+    <path
+      d="M 36 4 L 4 4 L 4 36"
+      fill="none"
+      stroke={GOLD}
+      strokeWidth={BRACKET_STROKE}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
 export const ReviewHighlight: React.FC<{
   review: { text: string; rating: number; author: string };
   palette: Palette;
   highlightPhrases: string[];
-}> = ({ review, palette, highlightPhrases }) => {
+}> = ({ review }) => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
 
@@ -76,65 +102,8 @@ export const ReviewHighlight: React.FC<{
     extrapolateRight: "clamp",
   });
 
-  const highlightProgress = interpolate(
-    frame,
-    [BLUR_CLEAR_FRAME, HIGHLIGHT_END_FRAME],
-    [0, 1],
-    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
-  );
-
   const text = useMemo(() => truncate(review.text), [review.text]);
   const lines = useMemo(() => wrapText(text), [text]);
-
-  const phrases =
-    highlightPhrases.length > 0
-      ? highlightPhrases
-      : firstSentenceFallback(text);
-
-  const highlightLineIndices = useMemo(() => {
-    const indices = new Set<number>();
-    for (const phrase of phrases) {
-      const lower = phrase.toLowerCase();
-      lines.forEach((line, i) => {
-        if (line.toLowerCase().includes(lower)) indices.add(i);
-      });
-    }
-    return Array.from(indices).sort((a, b) => a - b);
-  }, [lines, phrases]);
-
-  const containerH = lines.length * LINE_HEIGHT + 20;
-
-  const roughPaths = useMemo(() => {
-    // Measure actual rendered text widths via Canvas API (available in Chromium).
-    const ctx = document
-      .createElement("canvas")
-      .getContext("2d") as CanvasRenderingContext2D;
-    ctx.font = `500 ${FONT_SIZE}px system-ui, -apple-system, sans-serif`;
-
-    const gen = rough.generator();
-    const PAD_H = 10;
-    const PAD_V = 8;
-
-    return highlightLineIndices.flatMap((lineIdx, seedOffset) => {
-      const textWidth = ctx.measureText(lines[lineIdx]).width;
-      const rectW = textWidth + PAD_H * 2;
-      const rectY = lineIdx * LINE_HEIGHT - PAD_V;
-      const drawable = gen.rectangle(-PAD_H, rectY, rectW, LINE_HEIGHT + PAD_V, {
-        roughness: 2.2,
-        seed: seedOffset + 1,
-        stroke: "rgba(255,220,0,0.0)",
-        strokeWidth: 1,
-        fill: "rgba(255,200,0,0.32)",
-        fillStyle: "solid",
-      });
-      return gen.toPaths(drawable).map((p) => ({
-        d: p.d,
-        stroke: p.stroke ?? "none",
-        fill: p.fill ?? "none",
-        strokeWidth: p.strokeWidth ?? 1,
-      }));
-    });
-  }, [highlightLineIndices, lines]);
 
   return (
     <AbsoluteFill style={{ opacity }}>
@@ -162,56 +131,36 @@ export const ReviewHighlight: React.FC<{
             transform: `scale(${scale}) rotateY(${rotateY}deg) rotateX(${rotateX}deg)`,
             transformStyle: "preserve-3d",
             width: CONTAINER_W,
-            position: "relative",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 48,
           }}
         >
-          {/* rough.js highlight layer — behind text */}
-          <svg
-            width={CONTAINER_W}
-            height={containerH}
+          {/* Testimonial text block with corner brackets */}
+          <div
             style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              overflow: "visible",
-              zIndex: 0,
+              position: "relative",
+              padding: "48px 64px",
+              textAlign: "center",
             }}
           >
-            <defs>
-              <clipPath id="hl-reveal">
-                <rect
-                  x={0}
-                  y={0}
-                  width={CONTAINER_W * highlightProgress}
-                  height={containerH + 40}
-                />
-              </clipPath>
-            </defs>
-            <g clipPath="url(#hl-reveal)">
-              {roughPaths.map((p, i) => (
-                <path
-                  key={i}
-                  d={p.d}
-                  stroke={p.stroke}
-                  fill={p.fill}
-                  strokeWidth={p.strokeWidth}
-                />
-              ))}
-            </g>
-          </svg>
+            <CornerBracket rotation={0} />
+            <CornerBracket rotation={90} />
+            <CornerBracket rotation={180} />
+            <CornerBracket rotation={270} />
 
-          {/* Review text — on top of highlights */}
-          <div style={{ position: "relative", zIndex: 1 }}>
             {lines.map((line, i) => (
               <div
                 key={i}
                 style={{
                   fontSize: FONT_SIZE,
                   lineHeight: `${LINE_HEIGHT}px`,
-                  color: "rgba(255,255,255,0.96)",
-                  fontFamily: "system-ui, -apple-system, sans-serif",
+                  color: "rgba(255,252,240,0.95)",
+                  fontFamily: MONTSERRAT,
                   fontWeight: 500,
-                  textShadow: "0 2px 14px rgba(0,0,0,0.85)",
+                  textShadow:
+                    "0 0 24px rgba(0,0,0,0.95), 0 2px 10px rgba(0,0,0,0.85)",
                   whiteSpace: "pre",
                 }}
               >
@@ -219,28 +168,30 @@ export const ReviewHighlight: React.FC<{
               </div>
             ))}
           </div>
-        </div>
 
-        {/* Stars + author — below the 3D block */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 22,
-            marginTop: 48,
-          }}
-        >
-          <StarRating rating={review.rating} size={48} color={palette.accent} />
-          <span
+          {/* Stars centered below text */}
+          <div
             style={{
-              color: "rgba(255,255,255,0.72)",
-              fontSize: 38,
-              fontFamily: "system-ui, -apple-system, sans-serif",
-              textShadow: "0 2px 8px rgba(0,0,0,0.7)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 20,
             }}
           >
-            {review.author || "Customer"}
-          </span>
+            <StarRating rating={review.rating} size={48} color={GOLD} />
+            <span
+              style={{
+                color: LIGHT_GOLD,
+                fontSize: 36,
+                fontFamily: MONTSERRAT,
+                fontWeight: 300,
+                textShadow: "0 2px 10px rgba(0,0,0,0.8)",
+                letterSpacing: "0.04em",
+              }}
+            >
+              {review.author || "Customer"}
+            </span>
+          </div>
         </div>
       </AbsoluteFill>
     </AbsoluteFill>
