@@ -277,10 +277,8 @@ def make_outro_card(
     business_name: str, website_url: str, font_bold: str, font_reg: str,
     maps_url: str = "",
     city: str = "", country: str = "", country_code: str = "",
+    mini_map_path: str | None = None,
 ) -> ImageClip:
-    QR_SIZE = 600
-    QR_PAD = 40  # space between text block and QR code
-
     frame = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     bg = Image.new("RGBA", (W, H), (10, 10, 15, 210))
     frame.paste(bg)
@@ -299,78 +297,146 @@ def make_outro_card(
     except Exception:
         loc_font = ImageFont.load_default()
 
-    name_lines = textwrap.wrap(business_name, width=20) or [business_name]
-    line_h = 80
     has_url = bool(website_url)
     has_loc = bool(city or country)
-    LOC_LINE_H = 56
-    LOC_GAP = 16
-    LOC_TOP_PAD = 24
-    loc_h = (LOC_TOP_PAD + LOC_LINE_H + LOC_GAP + LOC_LINE_H) if has_loc else 0
-    text_h = len(name_lines) * line_h + (60 if has_url else 0) + loc_h
-    POST_QR_PAD  = 24
-    LABEL_LINE_H = 104
-    CTA_LINE_H   = 88
-    LINE_GAP     = 10
-    has_qr = bool(maps_url)
-    post_qr_h = (POST_QR_PAD + LABEL_LINE_H + LINE_GAP + CTA_LINE_H) if has_qr else 0
-    total_block_h = text_h + (QR_PAD + QR_SIZE if has_qr else 0) + post_qr_h
-    text_top = (H - total_block_h) // 2
+    has_qr  = bool(maps_url)
+    has_map = bool(mini_map_path)
 
-    for i, line in enumerate(name_lines):
-        bbox = draw.textbbox((0, 0), line, font=name_font)
-        x = (W - (bbox[2] - bbox[0])) // 2
-        draw.text((x, text_top + i * line_h), line, font=name_font, fill=(255, 255, 255, 255))
+    if has_map:
+        # 3-zone layout: top (text) | middle (OSM minimap) | bottom (QR + label)
+        QR_SIZE   = 320
+        MAP_SIZE  = MINI_MAP_SIZE
+        ZONE_GAP  = 48
+        POST_QR_PAD  = 20
+        LABEL_LINE_H = 80
 
-    if has_url:
-        short_url = website_url if len(website_url) <= 42 else website_url[:39] + "…"
-        url_y = text_top + len(name_lines) * line_h + 20
-        url_bbox = draw.textbbox((0, 0), short_url, font=url_font)
-        url_x = (W - (url_bbox[2] - url_bbox[0])) // 2
-        draw.text((url_x, url_y), short_url, font=url_font, fill=(170, 170, 170, 255))
+        name_lines = textwrap.wrap(business_name, width=20) or [business_name]
+        line_h = 72
+        LOC_LINE_H = 52
+        LOC_GAP    = 12
+        LOC_TOP_PAD = 20
+        loc_h  = (LOC_TOP_PAD + LOC_LINE_H + LOC_GAP + LOC_LINE_H) if has_loc else 0
+        text_h = len(name_lines) * line_h + (52 if has_url else 0) + loc_h
+        post_qr_h = (POST_QR_PAD + LABEL_LINE_H) if has_qr else 0
+        qr_h = (QR_SIZE + post_qr_h) if has_qr else 0
+        total_h = text_h + ZONE_GAP + MAP_SIZE + ZONE_GAP + qr_h
+        top = (H - total_h) // 2
 
-    if has_loc:
-        emoji_fp = find_emoji_font()
-        name_block_bottom = text_top + len(name_lines) * line_h + (60 if has_url else 0)
-        loc_y = name_block_bottom + LOC_TOP_PAD
-        if city:
-            city_bbox = draw.textbbox((0, 0), city, font=loc_font)
-            city_x = (W - (city_bbox[2] - city_bbox[0])) // 2
-            draw.text((city_x, loc_y), city, font=loc_font, fill=(200, 200, 200, 255))
-        loc_y += LOC_LINE_H + LOC_GAP
-        if country:
-            flag = _country_flag(country_code) + " " if country_code else ""
-            _draw_mixed_text(frame, draw, loc_y, f"{flag}{country}",
-                             loc_font, emoji_fp, (200, 200, 200, 255), LOC_LINE_H, W)
+        # --- text zone ---
+        for i, line in enumerate(name_lines):
+            bbox = draw.textbbox((0, 0), line, font=name_font)
+            x = (W - (bbox[2] - bbox[0])) // 2
+            draw.text((x, top + i * line_h), line, font=name_font, fill=(255, 255, 255, 255))
+        cur_y = top + len(name_lines) * line_h
+        if has_url:
+            short_url = website_url if len(website_url) <= 42 else website_url[:39] + "…"
+            url_bbox = draw.textbbox((0, 0), short_url, font=url_font)
+            url_x = (W - (url_bbox[2] - url_bbox[0])) // 2
+            draw.text((url_x, cur_y + 12), short_url, font=url_font, fill=(170, 170, 170, 255))
+            cur_y += 52
+        if has_loc:
+            emoji_fp = find_emoji_font()
+            cur_y += LOC_TOP_PAD
+            if city:
+                city_bbox = draw.textbbox((0, 0), city, font=loc_font)
+                city_x = (W - (city_bbox[2] - city_bbox[0])) // 2
+                draw.text((city_x, cur_y), city, font=loc_font, fill=(200, 200, 200, 255))
+            cur_y += LOC_LINE_H + LOC_GAP
+            if country:
+                flag = _country_flag(country_code) + " " if country_code else ""
+                _draw_mixed_text(frame, draw, cur_y, f"{flag}{country}",
+                                 loc_font, emoji_fp, (200, 200, 200, 255), LOC_LINE_H, W)
 
-    if has_qr:
-        qr_img = _render_qr(maps_url, QR_SIZE)
-        qr_x = (W - QR_SIZE) // 2
-        qr_y = text_top + text_h + QR_PAD
-        frame.paste(qr_img, (qr_x, qr_y), qr_img)
-
+        # --- map zone ---
+        map_y = top + text_h + ZONE_GAP
         try:
-            label_font = ImageFont.truetype(font_reg, 72)
-            cta_font   = ImageFont.truetype(font_reg, 60)
-        except Exception:
-            label_font = cta_font = ImageFont.load_default()
+            map_img = Image.open(mini_map_path).convert("RGBA").resize((MAP_SIZE, MAP_SIZE), Image.Resampling.LANCZOS)
+            map_x = (W - MAP_SIZE) // 2
+            frame.paste(map_img, (map_x, map_y), map_img)
+        except Exception as exc:
+            logger.warning("make_outro_card: could not load minimap: %s", exc)
 
-        label_y = qr_y + QR_SIZE + POST_QR_PAD
-        cta_y   = label_y + LABEL_LINE_H + LINE_GAP
-        emoji_fp = find_emoji_font()
+        # --- QR zone ---
+        if has_qr:
+            qr_top = map_y + MAP_SIZE + ZONE_GAP
+            qr_img = _render_qr(maps_url, QR_SIZE)
+            qr_x = (W - QR_SIZE) // 2
+            frame.paste(qr_img, (qr_x, qr_top), qr_img)
+            try:
+                label_font = ImageFont.truetype(font_reg, 56)
+            except Exception:
+                label_font = ImageFont.load_default()
+            label_y = qr_top + QR_SIZE + POST_QR_PAD
+            emoji_fp = find_emoji_font()
+            _draw_mixed_text(frame, draw, label_y, "📍 Google Maps ⬆",
+                             label_font, emoji_fp, (200, 200, 200, 255), LABEL_LINE_H, W)
 
-        _draw_mixed_text(frame, draw, label_y, "📍 Google Maps ⬆",
-                         label_font, emoji_fp, (200, 200, 200, 255), LABEL_LINE_H, W)
-        # _draw_mixed_text(frame, draw, cta_y, "📤 Share this QR Code",
-        #                  cta_font, emoji_fp, (150, 150, 150, 255), CTA_LINE_H, W)
+    else:
+        # Centred layout (no minimap): text + large QR
+        QR_SIZE = 600
+        QR_PAD = 40
+        POST_QR_PAD  = 24
+        LABEL_LINE_H = 104
+        LINE_GAP     = 10
+
+        name_lines = textwrap.wrap(business_name, width=20) or [business_name]
+        line_h = 80
+        LOC_LINE_H = 56
+        LOC_GAP    = 16
+        LOC_TOP_PAD = 24
+        loc_h  = (LOC_TOP_PAD + LOC_LINE_H + LOC_GAP + LOC_LINE_H) if has_loc else 0
+        text_h = len(name_lines) * line_h + (60 if has_url else 0) + loc_h
+        post_qr_h = (POST_QR_PAD + LABEL_LINE_H + LINE_GAP) if has_qr else 0
+        total_block_h = text_h + (QR_PAD + QR_SIZE if has_qr else 0) + post_qr_h
+        text_top = (H - total_block_h) // 2
+
+        for i, line in enumerate(name_lines):
+            bbox = draw.textbbox((0, 0), line, font=name_font)
+            x = (W - (bbox[2] - bbox[0])) // 2
+            draw.text((x, text_top + i * line_h), line, font=name_font, fill=(255, 255, 255, 255))
+
+        if has_url:
+            short_url = website_url if len(website_url) <= 42 else website_url[:39] + "…"
+            url_y = text_top + len(name_lines) * line_h + 20
+            url_bbox = draw.textbbox((0, 0), short_url, font=url_font)
+            url_x = (W - (url_bbox[2] - url_bbox[0])) // 2
+            draw.text((url_x, url_y), short_url, font=url_font, fill=(170, 170, 170, 255))
+
+        if has_loc:
+            emoji_fp = find_emoji_font()
+            name_block_bottom = text_top + len(name_lines) * line_h + (60 if has_url else 0)
+            loc_y = name_block_bottom + LOC_TOP_PAD
+            if city:
+                city_bbox = draw.textbbox((0, 0), city, font=loc_font)
+                city_x = (W - (city_bbox[2] - city_bbox[0])) // 2
+                draw.text((city_x, loc_y), city, font=loc_font, fill=(200, 200, 200, 255))
+            loc_y += LOC_LINE_H + LOC_GAP
+            if country:
+                flag = _country_flag(country_code) + " " if country_code else ""
+                _draw_mixed_text(frame, draw, loc_y, f"{flag}{country}",
+                                 loc_font, emoji_fp, (200, 200, 200, 255), LOC_LINE_H, W)
+
+        if has_qr:
+            qr_img = _render_qr(maps_url, QR_SIZE)
+            qr_x = (W - QR_SIZE) // 2
+            qr_y = text_top + text_h + QR_PAD
+            frame.paste(qr_img, (qr_x, qr_y), qr_img)
+
+            try:
+                label_font = ImageFont.truetype(font_reg, 72)
+            except Exception:
+                label_font = ImageFont.load_default()
+
+            label_y = qr_y + QR_SIZE + POST_QR_PAD
+            emoji_fp = find_emoji_font()
+            _draw_mixed_text(frame, draw, label_y, "📍 Google Maps ⬆",
+                             label_font, emoji_fp, (200, 200, 200, 255), LABEL_LINE_H, W)
 
     alpha = np.array(frame.split()[3]).astype(float) / 255.0
     rgb = np.array(frame.convert("RGB"))
     clip = ImageClip(rgb)
     mask = ImageClip(alpha, is_mask=True)
     return clip.with_mask(mask)
-
-
 def make_title_card(
     business_name: str, rating: float, font_bold: str, font_reg: str,
     photo_path: str | None = None,
@@ -1143,6 +1209,7 @@ def build_video(
     card_config: dict | None = None,
     structure: str = "default",
     review_count: int = 0,
+    tts_path: str | None = None,
 ) -> None:
     with _timer("fonts"):
         font_bold = find_font()
@@ -1182,21 +1249,22 @@ def build_video(
     cm = cfg.get("map",    {})
     co = cfg.get("outro",  {})
 
-    include_intro  = bool(ci.get("enabled", True))
-    include_review = bool(cr.get("enabled", True))
-    include_map    = bool(co.get("show_map", cm.get("enabled", True)))
-    include_outro  = bool(co.get("enabled", True))
-    show_qr        = bool(co.get("show_qr", True))
-    show_website   = bool(co.get("show_website", True))
+    include_intro     = bool(ci.get("enabled", True))
+    include_review    = bool(cr.get("enabled", True))
+    include_map_slide = bool(cm.get("enabled", False))   # standalone slide — default OFF
+    outro_show_map    = bool(co.get("show_map", True))   # OSM minimap in outro — default ON
+    include_outro     = bool(co.get("enabled", True))
+    show_qr           = bool(co.get("show_qr", True))
+    show_website      = bool(co.get("show_website", True))
 
     title_dur = float(ci.get("duration", TITLE_DUR))
     map_dur   = float(cm.get("duration", MAP_DUR))
     outro_dur = float(co.get("duration", OUTRO_DUR))
     review_dur_cfg = float(cr["duration"]) if cr.get("duration") is not None else None
 
-    # --- Map slide (requires lat/lng and enabled) ---
+    # --- Standalone map slide (requires lat/lng and explicitly enabled) ---
     with _timer("map_slide_render"):
-        map_clip_raw = make_map_slide(lat, lng, business_name, city) if (include_map and lat and lng) else None
+        map_clip_raw = make_map_slide(lat, lng, business_name, city) if (include_map_slide and lat and lng) else None
     has_map = map_clip_raw is not None
 
     # --- Compute effective total video length ---
@@ -1287,14 +1355,20 @@ def build_video(
         )
         map_clips.append(map_slide)
 
-    # Outro card — business name + URL + QR code
+    # Outro card — business name + URL + OSM minimap + QR code
     outro_clips: list = []
     if include_outro:
         _website = website_url if show_website else ""
         _maps_url_arg = maps_url if show_qr else ""
+        _mini_map_path: str | None = None
+        if outro_show_map and lat is not None and lng is not None:
+            import tempfile as _tempfile
+            _mm_dir = _tempfile.mkdtemp()
+            _mini_map_path = render_mini_map(lat, lng, os.path.join(_mm_dir, "minimap.png"))
         with _timer("outro_card"):
             oc = make_outro_card(business_name, _website, font_bold, font_reg, _maps_url_arg,
-                                 city=city, country=country, country_code=country_code)
+                                 city=city, country=country, country_code=country_code,
+                                 mini_map_path=_mini_map_path)
             oc = (
                 oc
                 .with_duration(outro_dur)
@@ -1312,13 +1386,25 @@ def build_video(
             .with_effects([vfx.FadeIn(FADE), vfx.FadeOut(FADE)])
         )
 
-    if music_path:
+    if tts_path or music_path:
+        from moviepy import CompositeAudioClip
+        audio_tracks = []
         with _timer("audio_load"):
-            audio = (
-                AudioFileClip(music_path)
-                .subclipped(music_offset, music_offset + effective_total)
-                .with_effects([afx.AudioFadeIn(FADE), afx.AudioFadeOut(FADE)])
-            )
+            if tts_path:
+                tts_clip = (
+                    AudioFileClip(tts_path)
+                    .with_effects([afx.AudioFadeIn(FADE), afx.AudioFadeOut(FADE)])
+                )
+                audio_tracks.append(tts_clip)
+            if music_path:
+                music_clip = (
+                    AudioFileClip(music_path)
+                    .subclipped(music_offset, music_offset + effective_total)
+                    .with_effects([afx.AudioFadeIn(FADE), afx.AudioFadeOut(FADE)])
+                    .with_volume_scaled(0.25 if tts_path else 1.0)
+                )
+                audio_tracks.append(music_clip)
+        audio = CompositeAudioClip(audio_tracks) if len(audio_tracks) > 1 else audio_tracks[0]
         final = final.with_audio(audio)
 
     comment = f"Website: {website_url}" if website_url else "Generated by gmaps-reviews-short-video"
@@ -1343,7 +1429,7 @@ def build_video(
             lambda t: frames[min(int(t * fps), n_frames - 1)],
             duration=effective_total,
         )
-        if music_path:
+        if tts_path or music_path:
             prerendered = prerendered.with_audio(final.audio)
 
     with _timer("ffmpeg_encode"):
@@ -1351,7 +1437,7 @@ def build_video(
             output_path,
             fps=fps,
             codec="libx264",
-            audio=music_path is not None,
+            audio=(tts_path is not None or music_path is not None),
             audio_codec="aac",
             preset="medium",
             threads=4,

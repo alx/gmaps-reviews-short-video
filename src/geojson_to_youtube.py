@@ -22,12 +22,16 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from . import gmaps, video, youtube
+from . import gmaps, tts as tts_mod, video, youtube
 from .main import make_description, make_title
 
 
 def _safe_filename(name: str) -> str:
     return re.sub(r"[^\w\-]", "_", name).strip("_")
+
+
+def _playlist_title_from_path(path: Path) -> str:
+    return path.stem.replace("-", " ").replace("_", " ").title()
 
 
 def _save_geojson(path: Path, data: dict) -> None:
@@ -65,6 +69,27 @@ def main() -> None:
         "--dry-run", action="store_true",
         help="Resolve places and check edge cases but do not generate videos or upload",
     )
+    parser.add_argument(
+        "--force", action="store_true",
+        help="Re-generate and re-upload even if youtube_url is already set",
+    )
+    parser.add_argument(
+        "--no-upload", action="store_true",
+        help="Generate videos locally but skip YouTube upload (for validation)",
+    )
+    parser.add_argument(
+        "--lang", default="en-us", metavar="LANG",
+        help="Kokoro TTS language code (default: en-us, e.g. fr-fr)",
+    )
+    parser.add_argument(
+        "--voice", default=tts_mod.KOKORO_VOICE, metavar="VOICE",
+        help=f"Kokoro TTS voice ID (default: {tts_mod.KOKORO_VOICE})",
+    )
+    parser.add_argument(
+        "--playlist-title", default=None, metavar="TITLE",
+        help="Create/reuse a YouTube playlist with this title and add each video to it. "
+             "The playlist ID is persisted in the GeoJSON _meta block.",
+    )
     args = parser.parse_args()
 
     geojson_path = Path(args.geojson)
@@ -89,8 +114,20 @@ def main() -> None:
     print(f"Found {total} locations in {geojson_path.name}")
 
     yt_service = None
-    if not args.dry_run:
+    playlist_id: str | None = None
+    if not args.dry_run and not args.no_upload:
         yt_service = youtube.authenticate()
+        if args.playlist_title:
+            meta = geojson.setdefault("_meta", {})
+            playlist_id = meta.get("playlist_id")
+            if not playlist_id:
+                playlist_title = args.playlist_title or _playlist_title_from_path(geojson_path)
+                playlist_id = youtube.create_playlist(yt_service, playlist_title)
+                meta["playlist_id"] = playlist_id
+                _save_geojson(geojson_path, geojson)
+                print(f"Created playlist '{playlist_title}' → {playlist_id}")
+            else:
+                print(f"Reusing playlist {playlist_id}")
 
     published = skipped = errors = 0
 
@@ -107,15 +144,16 @@ def main() -> None:
             website_url = props.get("url", "")
             prefix = f"[{i}/{total}] {name}"
 
-            if props.get("youtube_url"):
+            if props.get("youtube_url") and not args.force:
                 print(f"{prefix} — already published, skipping")
                 skipped += 1
                 continue
 
             # ── resolve place ──────────────────────────────────────────────
+            lang_bcp47 = args.lang[:3] + args.lang[3:].upper()  # fr-fr → fr-FR
             try:
-                place_id = gmaps.search_place_by_name(f"{name} {address}", client)
-                details = gmaps.get_place_details(place_id, client)
+                place_id = gmaps.search_place_by_name(f"{name} {address}", client, language_code=lang_bcp47)
+                details = gmaps.get_place_details(place_id, client, language_code=lang_bcp47)
             except Exception as exc:
                 print(f"{prefix} — SKIP (place not found: {exc})")
                 skipped += 1
@@ -161,6 +199,7 @@ def main() -> None:
 
             # ── download first 5 photos ────────────────────────────────────
             out_path = output_dir / f"{_safe_filename(name)}.mp4"
+            yt_url = ""
             try:
                 with tempfile.TemporaryDirectory() as tmpdir:
                     photo_paths = gmaps.download_photos(
@@ -168,6 +207,17 @@ def main() -> None:
                     )
 
                     music_path = str(random.choice(mp3_files)) if mp3_files else None
+
+                    tts_path: str | None = None
+                    if reviews and reviews[0].get("text"):
+                        tts_out = str(Path(tmpdir) / "tts.mp3")
+                        tts_text = reviews[0]["text"]
+                        if len(tts_text) > 140:
+                            tts_text = " ".join(tts_text[:140].split(" ")[:-1]).rstrip() + "…"
+                        tts_path = tts_mod.generate_tts(
+                            tts_text, tts_out,
+                            lang=args.lang, voice=args.voice,
+                        )
 
                     video.build_video(
                         business_name=business_name,
@@ -183,30 +233,36 @@ def main() -> None:
                         country_code=country_code,
                         lat=lat,
                         lng=lng,
+                        tts_path=tts_path,
                     )
 
-                    title = make_title(business_name, rating, category)
-                    description = make_description(
-                        business_name, rating, maps_url, api_website, category,
-                        music_copyright=args.music_copyright,
-                    )
-                    yt_url = youtube.upload_video(
-                        yt_service, str(out_path),
-                        title=title, description=description,
-                        lat=lat, lng=lng, location_description=business_name,
-                    )
+                    if args.no_upload:
+                        print(f"{prefix} — Video saved (no upload) → {out_path}")
+                    else:
+                        title = make_title(business_name, rating, category)
+                        description = make_description(
+                            business_name, rating, maps_url, api_website, category,
+                            music_copyright=args.music_copyright,
+                        )
+                        yt_url = youtube.upload_video(
+                            yt_service, str(out_path),
+                            title=title, description=description,
+                            lat=lat, lng=lng, location_description=business_name,
+                            playlist_id=playlist_id,
+                        )
 
             except Exception as exc:
                 print(f"{prefix} — ERROR: {exc}")
                 errors += 1
                 continue
 
-            # ── update geojson immediately ─────────────────────────────────
-            props["youtube_url"] = yt_url
-            _save_geojson(geojson_path, geojson)
+            if not args.no_upload:
+                # ── update geojson immediately ─────────────────────────────────
+                props["youtube_url"] = yt_url
+                _save_geojson(geojson_path, geojson)
+                print(f"{prefix} — Published → {yt_url}")
 
             published += 1
-            print(f"{prefix} — Published → {yt_url}")
 
     print(f"\nDone — {published} published, {skipped} skipped, {errors} errors")
 

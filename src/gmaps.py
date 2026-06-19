@@ -35,10 +35,13 @@ def _extract_place_name_from_url(url: str) -> str | None:
         return None
 
 
-def search_place_by_name(name: str, client: httpx.Client) -> str:
+def search_place_by_name(name: str, client: httpx.Client, language_code: str = "") -> str:
+    body: dict = {"textQuery": name}
+    if language_code:
+        body["languageCode"] = language_code
     resp = client.post(
         f"{BASE_URL}/places:searchText",
-        json={"textQuery": name},
+        json=body,
         headers={"X-Goog-FieldMask": "places.id"},
     )
     if not resp.is_success:
@@ -54,9 +57,11 @@ def search_place_by_name(name: str, client: httpx.Client) -> str:
     return places[0]["id"]
 
 
-def get_place_details(place_id: str, client: httpx.Client) -> dict:
+def get_place_details(place_id: str, client: httpx.Client, language_code: str = "") -> dict:
+    params = {"languageCode": language_code} if language_code else {}
     resp = client.get(
         f"{BASE_URL}/places/{place_id}",
+        params=params,
         headers={
             "X-Goog-FieldMask": "id,displayName,rating,userRatingCount,reviews,photos,websiteUri,addressComponents,location,formattedAddress"
         },
@@ -163,18 +168,13 @@ def select_best_reviews(reviews: list[dict], count: int = 1) -> list[dict]:
 
 
 def _load_cache(cache_dir: str, place_id: str) -> dict | None:
-    import json
-    path = Path(cache_dir) / f"{place_id}.json"
-    if path.exists():
-        return json.loads(path.read_text(encoding="utf-8"))
-    return None
+    from .web.place_cache import load_meta
+    return load_meta(cache_dir, place_id)
 
 
 def _save_cache(cache_dir: str, place_id: str, data: dict) -> None:
-    import json
-    path = Path(cache_dir) / f"{place_id}.json"
-    Path(cache_dir).mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    from .web.place_cache import save_meta
+    save_meta(cache_dir, place_id, data)
 
 
 def fetch_place_metadata(url: str, api_key: str, cache_dir: str | None = None) -> dict:
