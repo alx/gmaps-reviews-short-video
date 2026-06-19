@@ -18,8 +18,10 @@ dependencies = [
     "timezonefinder>=6.0",
     "honcho>=1.1",
     "anthropic>=0.40",
-    "manim>=0.20.1",
 ]
+
+[project.optional-dependencies]
+companion = ["manim>=0.20.1"]
 
 [project.scripts]
 gmaps-reviews-short-video = "src.main:main"
