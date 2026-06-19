@@ -37,3 +37,20 @@ web_workspace/
 *.swp
 Thumbs.db
 /*.html
+
+# Tool / agent state
+.agents/
+.claude/
+.playwright-mcp/
+skills-lock.json
+
+# Remotion runtime (downloaded chrome binary, not source)
+.remotion/
+
+# Node dependencies
+remotion-sidecar/node_modules/
+
+# Runtime / local data
+logs/
+gunicorn.pid
+locations.geojson
