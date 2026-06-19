@@ -9,7 +9,10 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
 
-SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
+SCOPES = [
+    "https://www.googleapis.com/auth/youtube.upload",
+    "https://www.googleapis.com/auth/youtube",
+]
 TOKEN_PATH = pathlib.Path.home() / ".config" / "reviewreel" / "token.json"
 
 
@@ -41,6 +44,27 @@ def authenticate():
     return build("youtube", "v3", credentials=creds)
 
 
+def create_playlist(service, title: str, privacy: str = "public") -> str:
+    """Create a new YouTube playlist and return its playlist ID."""
+    body = {
+        "snippet": {"title": title, "defaultLanguage": "fr"},
+        "status": {"privacyStatus": privacy},
+    }
+    response = service.playlists().insert(part="snippet,status", body=body).execute()
+    return response["id"]
+
+
+def add_video_to_playlist(service, playlist_id: str, video_id: str) -> None:
+    """Append a video to an existing YouTube playlist."""
+    body = {
+        "snippet": {
+            "playlistId": playlist_id,
+            "resourceId": {"kind": "youtube#video", "videoId": video_id},
+        }
+    }
+    service.playlistItems().insert(part="snippet", body=body).execute()
+
+
 def upload_video(
     service,
     video_path: str,
@@ -49,6 +73,7 @@ def upload_video(
     lat: float | None = None,
     lng: float | None = None,
     location_description: str = "",
+    playlist_id: str | None = None,
 ) -> str:
     """Upload video to YouTube and return its URL."""
     body = {
@@ -89,4 +114,9 @@ def upload_video(
         sys.exit(1)
 
     video_id = response["id"]
+    if playlist_id:
+        try:
+            add_video_to_playlist(service, playlist_id, video_id)
+        except HttpError as e:
+            print(f"Warning: could not add video to playlist: {e}", file=sys.stderr)
     return f"https://youtu.be/{video_id}"

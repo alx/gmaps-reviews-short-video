@@ -1,0 +1,3 @@
+# Python staticmap generates the map image; Remotion treats it as a static asset
+
+The Map card needs an OpenStreetMap tile image. We keep Python's `staticmap` library generating this image before the render job is dispatched, rather than rendering a map inside the Remotion Composition (e.g. react-leaflet or raw tile fetching). Reasons: `react-leaflet` has known SSR/Chromium headless issues, tile fetching inside a Remotion render adds network fragility and non-determinism, and `staticmap` already works reliably. The pre-rendered PNG is served via the sidecar's static file route and passed to the Composition as a plain `<Img>` URL.

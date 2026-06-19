@@ -142,6 +142,7 @@ textarea { resize: vertical; min-height: 90px; }
 .btn-danger { background: var(--danger); color: #fff; }
 .btn-success { background: var(--success); color: #fff; }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-link { background: none; border: none; padding: 0; font-size: inherit; font-weight: 600; color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 
 /* ── Error / alert ──────────────────────── */
 .alert {
@@ -680,3 +681,77 @@ button.htmx-request { opacity: 0.7; pointer-events: none; }
 .footer-commit:hover { color: var(--accent); text-decoration: none; }
 .footer-sep { margin: 0 0.4rem; }
 .footer-date { color: var(--text-muted); }
+
+/* ── Past videos strip ───────────────────── */
+.past-videos-card { padding: 1rem 1.25rem; }
+.past-videos-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+.past-videos-title { font-weight: 600; font-size: 0.95rem; }
+.past-videos-strip {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+  scrollbar-width: thin;
+}
+.past-video-item {
+  position: relative;
+  flex: 0 0 auto;
+  width: 80px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid var(--border);
+  background: var(--surface2);
+  aspect-ratio: 9/16;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.past-video-item:hover { border-color: var(--accent); transform: scale(1.03); }
+.past-video-thumb {
+  width: 100%; height: 100%;
+  object-fit: cover; display: block;
+}
+.past-video-dl {
+  position: absolute; bottom: 4px; right: 4px;
+  background: rgba(0,0,0,0.65); color: #fff;
+  font-size: 0.75rem; padding: 2px 5px;
+  border-radius: 4px; text-decoration: none;
+  line-height: 1;
+}
+.past-video-dl:hover { background: var(--accent); color: #fff; }
+.past-video-date {
+  position: absolute; bottom: 4px; left: 4px;
+  background: rgba(0,0,0,0.65); color: #fff;
+  font-size: 0.65rem; padding: 1px 4px;
+  border-radius: 3px; line-height: 1.3;
+}
+
+/* ── Photo delete button ─────────────────── */
+.photo-delete-btn {
+  position: absolute; bottom: 4px; right: 4px;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(220, 38, 38, 0.85);
+  color: #fff;
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.photo-item:hover .photo-delete-btn { opacity: 1; }
+
+/* ── Photo upload zone ───────────────────── */
+.photo-upload-zone {
+  display: flex; align-items: center; gap: 0.75rem;
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  background: var(--surface2);
+}

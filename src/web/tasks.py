@@ -191,37 +191,55 @@ def run_in_thread(fn, *args, **kwargs) -> TaskState:
 
 
 def _fetch_task(task: TaskState, url: str, api_key: str, session_dir: str) -> None:
+    from . import place_cache as pc
+
     logger.info("[task:%s] fetch started url=%s", task.task_id[:8], url)
     store.update(task.task_id, status=TaskStatus.RUNNING, progress="Fetching place data…", progress_pct=10)
-    cache_dir = str(Path(session_dir).parent.parent / "place_cache")
+    workspace_root = str(Path(session_dir).parent.parent)
+    cache_root = str(Path(workspace_root) / "place_cache")
     try:
-        meta = gmaps.fetch_place_metadata(url, api_key, cache_dir=cache_dir)
+        meta = gmaps.fetch_place_metadata(url, api_key, cache_dir=cache_root)
     except Exception as exc:
         logger.error("[task:%s] fetch place metadata failed: %s", task.task_id[:8], exc)
         store.update(task.task_id, status=TaskStatus.ERROR, error=str(exc))
         return
 
+    place_id = meta["place_id"]
     logger.info("[task:%s] place metadata fetched: %s", task.task_id[:8], meta.get("business_name", ""))
-    store.update(task.task_id, progress="Downloading photo previews…", progress_pct=40)
-    thumb_dir = Path(session_dir) / "thumbs"
-    thumb_dir.mkdir(parents=True, exist_ok=True)
-    try:
-        thumb_paths = gmaps.download_selected_photos(
-            meta["raw_photos"], api_key, str(thumb_dir),
-            indices=None, max_photos=10, width=400, height=711,
-        )
-    except Exception as exc:
-        logger.error("[task:%s] photo download failed: %s", task.task_id[:8], exc)
-        store.update(task.task_id, status=TaskStatus.ERROR, error=f"Photo download failed: {exc}")
-        return
 
-    logger.info("[task:%s] fetch done: %d thumbnails", task.task_id[:8], len(thumb_paths))
+    # Check if thumbnails are already in the place cache (cache hit on photos too)
+    cached_thumbs = pc.cached_thumb_paths(cache_root, place_id)
+    if cached_thumbs:
+        logger.info("[task:%s] photo cache hit: %d thumbs", task.task_id[:8], len(cached_thumbs))
+        thumb_paths = cached_thumbs
+    else:
+        store.update(task.task_id, progress="Downloading photo previews…", progress_pct=40)
+        thumb_dir = Path(session_dir) / "thumbs"
+        thumb_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            session_thumbs = gmaps.download_selected_photos(
+                meta["raw_photos"], api_key, str(thumb_dir),
+                indices=None, max_photos=10, width=400, height=711,
+            )
+        except Exception as exc:
+            logger.error("[task:%s] photo download failed: %s", task.task_id[:8], exc)
+            store.update(task.task_id, status=TaskStatus.ERROR, error=f"Photo download failed: {exc}")
+            return
+        thumb_paths = pc.copy_thumbnails(cache_root, place_id, session_thumbs)
+        logger.info("[task:%s] fetch done: %d thumbnails cached", task.task_id[:8], len(thumb_paths))
+
     store.update(
         task.task_id,
         status=TaskStatus.DONE,
         progress="Done",
         progress_pct=100,
-        result={**meta, "thumbnail_paths": thumb_paths, "session_dir": session_dir},
+        result={
+            **meta,
+            "thumbnail_paths": thumb_paths,
+            "session_dir": session_dir,
+            "workspace_root": workspace_root,
+            "cache_root": cache_root,
+        },
     )
 
 
@@ -299,8 +317,10 @@ def _run_generate_core(
         task.task_id[:8], place_data.get("business_name", ""), industry_vibe,
     )
     store.update(task.task_id, progress="Saving metadata…", progress_pct=95)
+    place_id = place_data.get("place_id", "")
     metadata: dict = {
         "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
+        "place_id": place_id,
         "maps_url": maps_url,
         "business_name": place_data["business_name"],
         "rating": place_data["rating"],
@@ -317,6 +337,12 @@ def _run_generate_core(
     metadata_path = str(Path(session_dir) / "metadata.json")
     with open(metadata_path, "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2, ensure_ascii=False)
+
+    if place_id:
+        from . import place_cache as pc
+        workspace_root = str(Path(session_dir).parent.parent)
+        session_id = Path(session_dir).name
+        pc.append_session(workspace_root, place_id, session_id)
 
     store.update(
         task.task_id,
@@ -345,6 +371,8 @@ def _generate_task(
     industry_vibe: str = "other",
     structure: str = "default",
     reviews_list: list[dict] | None = None,
+    ordered_sources: list[dict] | None = None,
+    cache_root: str | None = None,
 ) -> None:
     logger.info(
         "[task:%s] generate started business=%s vibe=%s",
@@ -353,15 +381,44 @@ def _generate_task(
     store.update(task.task_id, status=TaskStatus.RUNNING, progress="Downloading full-res photos…", progress_pct=10)
     photo_dir = Path(session_dir) / "photos"
     photo_dir.mkdir(parents=True, exist_ok=True)
-    try:
-        photo_paths = gmaps.download_selected_photos(
-            place_data["raw_photos"], api_key, str(photo_dir),
-            indices=photo_indices, max_photos=10,
-        )
-    except Exception as exc:
-        logger.error("[task:%s] photo download failed: %s", task.task_id[:8], exc)
-        store.update(task.task_id, status=TaskStatus.ERROR, error=f"Photo download failed: {exc}")
-        return
+
+    if ordered_sources:
+        # Mixed API + custom photos: download full-res for API, copy custom directly
+        photo_paths: list[str] = []
+        api_indices = [s["index"] for s in ordered_sources if s["type"] == "api"]
+        try:
+            api_full_res: dict[int, str] = {}
+            if api_indices:
+                downloaded = gmaps.download_selected_photos(
+                    place_data["raw_photos"], api_key, str(photo_dir),
+                    indices=api_indices, max_photos=10,
+                )
+                api_full_res = dict(zip(api_indices, downloaded))
+        except Exception as exc:
+            logger.error("[task:%s] photo download failed: %s", task.task_id[:8], exc)
+            store.update(task.task_id, status=TaskStatus.ERROR, error=f"Photo download failed: {exc}")
+            return
+
+        for slot, src in enumerate(ordered_sources):
+            if src["type"] == "api":
+                p = api_full_res.get(src["index"])
+                if p:
+                    photo_paths.append(p)
+            else:
+                import shutil
+                dest = photo_dir / f"custom_{slot}.jpg"
+                shutil.copy2(src["path"], str(dest))
+                photo_paths.append(str(dest))
+    else:
+        try:
+            photo_paths = gmaps.download_selected_photos(
+                place_data["raw_photos"], api_key, str(photo_dir),
+                indices=photo_indices, max_photos=10,
+            )
+        except Exception as exc:
+            logger.error("[task:%s] photo download failed: %s", task.task_id[:8], exc)
+            store.update(task.task_id, status=TaskStatus.ERROR, error=f"Photo download failed: {exc}")
+            return
 
     reviews_to_use = reviews_list if reviews_list is not None else ([selected_review] if selected_review else [])
 

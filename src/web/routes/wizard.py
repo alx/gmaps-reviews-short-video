@@ -13,6 +13,7 @@ from flask import (
     Response,
     abort,
     current_app,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -23,6 +24,7 @@ from flask import (
 )
 
 from .. import tasks as task_mod
+from .. import place_cache as pc
 from ..tasks import TaskStatus
 
 wizard = Blueprint("wizard", __name__)
@@ -204,10 +206,21 @@ def poll_fetch(task_id: str):
 
     result = task.result
     workspace = _workspace()
-    thumb_urls = []
-    for p in result.get("thumbnail_paths", []):
-        rel = os.path.relpath(p, workspace)
-        thumb_urls.append(url_for("media.serve_media", filename=rel))
+    place_id = result.get("place_id", "")
+    cache_root = result.get("cache_root", str(Path(workspace) / "place_cache"))
+
+    # Build thumb info list from place cache (filename + media URL)
+    cached_images = pc.list_images(cache_root, place_id) if place_id else []
+    if not cached_images:
+        # fallback: session thumbs (first run before cache is populated)
+        cached_images = [Path(p) for p in result.get("thumbnail_paths", [])]
+    thumb_items = []
+    for img_path in cached_images:
+        rel = os.path.relpath(str(img_path), workspace)
+        thumb_items.append({
+            "url": url_for("media.serve_media", filename=rel),
+            "filename": img_path.name,
+        })
 
     from ...main import make_title, make_description
 
@@ -233,14 +246,24 @@ def poll_fetch(task_id: str):
 
     gp_authed = get_or_refresh_gp_credentials(result["session_dir"]) is not None
 
+    videos = pc.past_videos(workspace, place_id) if place_id else []
+    past_video_items = []
+    for v in videos:
+        past_video_items.append({
+            "video_url": url_for("media.serve_media", filename=v["video_rel"]),
+            "generated_at": v["generated_at"],
+            "business_name": v["business_name"],
+        })
+
     return render_template(
         "fragments/step2_block.html",
         fetch_task_id=task_id,
+        place_id=place_id,
         business_name=result["business_name"],
         rating=result["rating"],
         review_count=result.get("review_count", 0),
         reviews=result.get("reviews", []),
-        thumb_urls=thumb_urls,
+        thumb_items=thumb_items,
         preset_music=preset_music,
         suggested_title=suggested_title,
         suggested_description=suggested_description,
@@ -249,6 +272,7 @@ def poll_fetch(task_id: str):
         auto_mode=session.get("auto_mode", False),
         auto_preset_music=auto_preset_music,
         industry_vibe=session.get("industry_vibe", "other"),
+        past_videos=past_video_items,
     )
 
 
@@ -507,10 +531,31 @@ def step2_submit():
             reviews_list=reviews_list,
         )
     else:
-        try:
-            photo_indices = [int(x) for x in photo_order]
-        except (ValueError, TypeError):
-            photo_indices = list(range(min(5, len(result.get("raw_photos", [])))))
+        # photo_order values are filenames (e.g. "thumb_3.jpg", "custom_abc.jpg")
+        # Parse into API indices and custom paths
+        cache_root = result.get("cache_root",
+                                str(Path(_workspace()) / "place_cache"))
+        place_id = result.get("place_id", "")
+        photo_indices: list[int] = []
+        ordered_sources: list[dict] = []
+        for fname in photo_order:
+            api_idx = pc.api_index_from_filename(fname) if fname else None
+            if api_idx is not None:
+                ordered_sources.append({"type": "api", "index": api_idx})
+            elif fname and fname.startswith("custom_") and place_id:
+                img_path = str(pc.images_dir(cache_root, place_id) / fname)
+                if Path(img_path).exists():
+                    ordered_sources.append({"type": "custom", "path": img_path})
+        # Legacy fallback: plain integers
+        if not ordered_sources:
+            try:
+                for x in photo_order:
+                    ordered_sources.append({"type": "api", "index": int(x)})
+            except (ValueError, TypeError):
+                for i in range(min(5, len(result.get("raw_photos", [])))):
+                    ordered_sources.append({"type": "api", "index": i})
+        # Collect pure API indices for the download path
+        photo_indices = [s["index"] for s in ordered_sources if s["type"] == "api"]
 
         gen_task = task_mod.run_in_thread(
             task_mod._generate_task,
@@ -526,6 +571,8 @@ def step2_submit():
             industry_vibe,
             structure=structure,
             reviews_list=reviews_list,
+            ordered_sources=ordered_sources,
+            cache_root=cache_root,
         )
 
     session["generate_task_id"] = gen_task.task_id
@@ -563,6 +610,37 @@ def serve_mp3(filename: str):
         abort(400)
     mp3_dir = Path(current_app.config.get("PROJECT_ROOT", "")) / "mp3"
     return send_from_directory(str(mp3_dir), filename)
+
+
+# ---------------------------------------------------------------------------
+# Place cache — image management (HTMX)
+# ---------------------------------------------------------------------------
+
+@wizard.delete("/api/place/<place_id>/images/<filename>")
+def delete_place_image(place_id: str, filename: str):
+    cache_root = str(Path(_workspace()) / "place_cache")
+    deleted = pc.delete_image(cache_root, place_id, filename)
+    if not deleted:
+        return "", 404
+    return "", 200
+
+
+@wizard.post("/api/place/<place_id>/images/upload")
+def upload_place_image(place_id: str):
+    f = request.files.get("image")
+    if not f or not f.filename:
+        return jsonify({"error": "no file"}), 400
+    ext = Path(f.filename).suffix.lower()
+    if ext not in {".jpg", ".jpeg", ".png", ".webp"}:
+        return jsonify({"error": "unsupported format"}), 400
+    cache_root = str(Path(_workspace()) / "place_cache")
+    filename = pc.save_custom_image(cache_root, place_id, f.read(), f.filename)
+    img_path = pc.images_dir(cache_root, place_id) / filename
+    rel = os.path.relpath(str(img_path), _workspace())
+    return jsonify({
+        "filename": filename,
+        "url": url_for("media.serve_media", filename=rel),
+    })
 
 
 # ---------------------------------------------------------------------------

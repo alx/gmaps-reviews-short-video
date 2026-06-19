@@ -73,22 +73,20 @@
           </div>
         </fieldset>
 
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
-          <div>
-            <button id="btn-auto" type="submit" class="btn btn-primary" style="width:100%;"
+        <div>
+          <button id="fetch-btn" type="submit" class="btn btn-primary" style="width:100%;"
+                  onclick="document.getElementById('auto-mode-input').value='0'">
+            <span class="htmx-indicator spinner"></span>
+            Fetch Place Data →
+          </button>
+          <div class="muted" style="margin:0.5rem 0 0; font-size:0.8rem; text-align:center;">
+            or
+            <button id="btn-auto" type="submit" class="btn-link"
                     onclick="document.getElementById('auto-mode-input').value='1'">
               <span class="htmx-indicator spinner"></span>
-              ▶ Generate Video — 1 Click
+              → 1-click video
             </button>
-            <p class="muted" style="margin:0.3rem 0 0; font-size:0.8rem; text-align:center;">Best photos &amp; top review picked automatically</p>
-          </div>
-          <div>
-            <button id="fetch-btn" type="submit" class="btn btn-outline" style="width:100%;"
-                    onclick="document.getElementById('auto-mode-input').value='0'">
-              <span class="htmx-indicator spinner"></span>
-              Fetch Place Data →
-            </button>
-            <p class="muted" style="margin:0.3rem 0 0; font-size:0.8rem; text-align:center;">Choose photos, review, music &amp; card layout</p>
+            · AI picks the best photos &amp; review
           </div>
         </div>
       </form>

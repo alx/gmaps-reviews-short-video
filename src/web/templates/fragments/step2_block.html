@@ -1,7 +1,29 @@
 <section id="step2-block" class="wizard-block">
+
+  {% if past_videos %}
+  <div class="card past-videos-card">
+    <div class="past-videos-header">
+      <span class="past-videos-title">Past videos for this place</span>
+      <span class="muted" style="font-size:0.8rem">{{ past_videos|length }} video{{ 's' if past_videos|length != 1 }}</span>
+    </div>
+    <div class="past-videos-strip">
+      {% for v in past_videos %}
+      <div class="past-video-item">
+        <video src="{{ v.video_url }}" class="past-video-thumb" muted playsinline loop
+               onmouseenter="this.play()" onmouseleave="this.pause();this.currentTime=0"></video>
+        <a href="{{ v.video_url }}" download class="past-video-dl" title="Download">⬇</a>
+        {% if v.generated_at %}
+        <span class="past-video-date">{{ v.generated_at[:10] }}</span>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
   <div class="card">
-    {% if thumb_urls %}
-    <img src="{{ thumb_urls[0] }}" alt="{{ business_name }}" class="business-cover">
+    {% if thumb_items %}
+    <img src="{{ thumb_items[0].url }}" alt="{{ business_name }}" class="business-cover">
     {% endif %}
     <div class="block-label">✂️ Step 2 — Select &amp; Arrange</div>
     <h2>{{ business_name }}</h2>
@@ -16,6 +38,7 @@
         hx-on::after-request="document.getElementById('generate-btn').disabled=true">
     <input type="hidden" name="fetch_task_id" value="{{ fetch_task_id }}">
     <input type="hidden" name="industry_vibe" value="{{ industry_vibe }}">
+    <input type="hidden" name="place_id" value="{{ place_id }}">
 
     <!-- Reviews -->
     <div class="card">
@@ -52,7 +75,7 @@
 
       <!-- Place Photos tab (existing) -->
       <div id="tab-places" class="photo-tab-panel">
-        {% if thumb_urls %}
+        {% if thumb_items %}
         <p class="muted" style="margin-bottom:0.5rem">
           Drag to reorder. Uncheck to exclude. First 5 selected photos will be used in the slideshow.
         </p>
@@ -61,21 +84,37 @@
           <button type="button" class="btn btn-outline btn-sm" id="btn-select-none">Select none</button>
         </div>
         <div class="photo-grid" id="photo-grid">
-          {% for url in thumb_urls %}
-          <div class="photo-item" data-idx="{{ loop.index0 }}">
+          {% for item in thumb_items %}
+          <div class="photo-item" data-idx="{{ item.filename }}">
             <span class="photo-num">{{ loop.index }}</span>
-            <img src="{{ url }}" alt="Photo {{ loop.index }}" loading="lazy">
+            <img src="{{ item.url }}" alt="Photo {{ loop.index }}" loading="lazy">
             <span class="photo-check">
-              <input type="checkbox" name="selected_photos" value="{{ loop.index0 }}" {% if loop.index0 < 5 %}checked{% endif %} title="Include photo {{ loop.index }}">
+              <input type="checkbox" name="selected_photos" value="{{ item.filename }}" {% if loop.index0 < 5 %}checked{% endif %} title="Include photo {{ loop.index }}">
             </span>
+            <button type="button" class="photo-delete-btn"
+                    data-filename="{{ item.filename }}"
+                    data-place-id="{{ place_id }}"
+                    title="Remove from cache">×</button>
           </div>
           {% endfor %}
         </div>
         <div id="photo-order-inputs">
-          {% for url in thumb_urls %}
-          <input type="hidden" name="photo_order" value="{{ loop.index0 }}">
+          {% for item in thumb_items %}
+          {% if loop.index0 < 5 %}
+          <input type="hidden" name="photo_order" value="{{ item.filename }}">
+          {% endif %}
           {% endfor %}
         </div>
+
+        <!-- Upload zone -->
+        <div class="photo-upload-zone" id="photo-upload-zone">
+          <input type="file" id="photo-upload-input" accept="image/jpeg,image/png,image/webp" multiple style="display:none">
+          <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('photo-upload-input').click()">
+            + Add photos
+          </button>
+          <span class="muted" style="font-size:0.8rem">JPG, PNG, WebP</span>
+        </div>
+
         {% else %}
         <p class="muted">No place photos available.</p>
         {% endif %}
@@ -424,17 +463,18 @@
     var cb = item.querySelector('input[type="checkbox"]');
     if (cb) { cb.checked = !cb.checked; updateOrder(); }
   });
+
   function updateOrder() {
     const container = document.getElementById('photo-order-inputs');
     container.innerHTML = '';
     grid.querySelectorAll('.photo-item').forEach(function(item) {
-      const idx = item.dataset.idx;
+      const filename = item.dataset.idx;
       const checked = item.querySelector('input[type="checkbox"]').checked;
       if (checked) {
         const inp = document.createElement('input');
         inp.type = 'hidden';
         inp.name = 'photo_order';
-        inp.value = idx;
+        inp.value = filename;
         container.appendChild(inp);
       }
     });
@@ -442,8 +482,54 @@
   grid.addEventListener('change', updateOrder);
   updateOrder();
 
-  // Rebuild hidden inputs right before HTMX submits the form so that any
-  // missed change/drag events don't leave stale photo_order values.
+  // Delete button — removes photo from place cache via HTMX-style DELETE
+  grid.addEventListener('click', function(e) {
+    var btn = e.target.closest('.photo-delete-btn');
+    if (!btn) return;
+    e.stopPropagation();
+    var filename = btn.dataset.filename;
+    var placeId  = btn.dataset.placeId;
+    if (!filename || !placeId) return;
+    var item = btn.closest('.photo-item');
+    fetch('/api/place/' + encodeURIComponent(placeId) + '/images/' + encodeURIComponent(filename), {
+      method: 'DELETE',
+    }).then(function(r) {
+      if (r.ok && item) { item.remove(); updateOrder(); }
+    });
+  });
+
+  // Upload zone
+  var uploadInput = document.getElementById('photo-upload-input');
+  if (uploadInput) {
+    uploadInput.addEventListener('change', function() {
+      var placeId = document.querySelector('input[name="place_id"]') &&
+                    document.querySelector('input[name="place_id"]').value;
+      if (!placeId) return;
+      Array.from(uploadInput.files).forEach(function(file) {
+        var fd = new FormData();
+        fd.append('image', file);
+        fetch('/api/place/' + encodeURIComponent(placeId) + '/images/upload', {
+          method: 'POST', body: fd,
+        }).then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (!data.filename) return;
+            var div = document.createElement('div');
+            div.className = 'photo-item';
+            div.dataset.idx = data.filename;
+            div.innerHTML =
+              '<span class="photo-num">' + (grid.querySelectorAll('.photo-item').length + 1) + '</span>' +
+              '<img src="' + data.url + '" alt="Custom photo" loading="lazy">' +
+              '<span class="photo-check"><input type="checkbox" name="selected_photos" value="' + data.filename + '" checked></span>' +
+              '<button type="button" class="photo-delete-btn" data-filename="' + data.filename + '" data-place-id="' + placeId + '" title="Remove from cache">×</button>';
+            grid.appendChild(div);
+            updateOrder();
+          });
+      });
+      uploadInput.value = '';
+    });
+  }
+
+  // Rebuild hidden inputs right before HTMX submits the form.
   var form = document.getElementById('select-form');
   if (form) {
     form.addEventListener('htmx:beforeRequest', function () {

@@ -9,9 +9,15 @@ _MODEL_FILE = _KOKORO_MODEL_DIR / "kokoro-v1.0.onnx"
 _VOICES_FILE = _KOKORO_MODEL_DIR / "voices-v1.0.bin"
 
 KOKORO_VOICE = "am_adam"
+KOKORO_LANG = "en-us"
 
 
-def generate_tts(text: str, output_path: str) -> str | None:
+def generate_tts(
+    text: str,
+    output_path: str,
+    lang: str = KOKORO_LANG,
+    voice: str = KOKORO_VOICE,
+) -> str | None:
     """Generate speech for *text* using kokoro-tts and write MP3 to *output_path*.
 
     Returns *output_path* on success, None if kokoro-tts is unavailable.
@@ -32,9 +38,9 @@ def generate_tts(text: str, output_path: str) -> str | None:
                 kokoro_bin,
                 "-",  # read text from stdin
                 output_path,
-                "--voice", KOKORO_VOICE,
+                "--voice", voice,
                 "--format", "mp3",
-                "--lang", "en-us",
+                "--lang", lang,
                 "--model", str(_MODEL_FILE),
                 "--voices", str(_VOICES_FILE),
             ],
