@@ -491,6 +491,8 @@ def render_scenes(script_path: Path, quality: str = "l") -> list[Path]:
 
 def stitch_scenes(scene_paths: list[Path], output_path: Path) -> None:
     concat_txt = output_path.parent / "concat.txt"
+    if ".." in str(concat_txt):
+        raise Exception("Invalid file path")
     concat_txt.write_text(
         "\n".join(f"file '{p}'" for p in scene_paths),
         encoding="utf-8",

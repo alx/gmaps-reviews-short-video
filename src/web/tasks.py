@@ -500,6 +500,8 @@ def _publish_task(
         return
 
     try:
+        if ".." in metadata_path:
+            raise Exception("Invalid file path")
         with open(metadata_path, encoding="utf-8") as f:
             meta = json.load(f)
         meta["youtube_url"] = yt_url

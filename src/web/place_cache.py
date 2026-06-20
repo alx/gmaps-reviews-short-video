@@ -20,6 +20,7 @@ Image filenames encode origin:
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import uuid
 from pathlib import Path
@@ -57,6 +58,10 @@ def load_meta(cache_root: str, place_id: str) -> dict | None:
 
 def save_meta(cache_root: str, place_id: str, data: dict) -> None:
     p = _meta_path(cache_root, place_id)
+    base_real = os.path.realpath(cache_root)
+    target_real = os.path.realpath(p)
+    if os.path.commonpath([base_real, target_real]) != base_real:
+        raise ValueError("Invalid file path")
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -155,6 +160,10 @@ def _index_path(workspace_root: str, place_id: str) -> Path:
 
 def append_session(workspace_root: str, place_id: str, session_id: str) -> None:
     p = _index_path(workspace_root, place_id)
+    base_real = os.path.realpath(Path(workspace_root) / "place_index")
+    target_real = os.path.realpath(p)
+    if os.path.commonpath([base_real, target_real]) != base_real:
+        raise ValueError("Invalid file path")
     p.parent.mkdir(parents=True, exist_ok=True)
     sessions: list[str] = []
     if p.exists():
