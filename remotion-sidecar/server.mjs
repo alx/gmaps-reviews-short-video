@@ -1,4 +1,5 @@
 import express from "express";
+import helmet from "helmet";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import { createRequire } from "module";
@@ -14,6 +15,7 @@ const ROOT_DIR =
   process.env.SIDECAR_ROOT_DIR ?? path.join(__dirname, "..");
 
 const app = express();
+app.use(helmet());
 app.use(express.json({ limit: "10mb" }));
 
 // Serve the project root so Chromium can fetch photos, map images, and music.
