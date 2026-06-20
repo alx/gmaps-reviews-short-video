@@ -38,7 +38,14 @@ def get_or_refresh_gp_credentials(session_dir: str):
     if creds and creds.expired and creds.refresh_token:
         try:
             creds.refresh(Request())
-            token_path.write_text(creds.to_json())
+            workspace_dir = Path(current_app.config["WORKSPACE_DIR"])
+            base_dir = (workspace_dir / "sessions").resolve()
+            token_path_resolved = token_path.resolve()
+            try:
+                token_path_resolved.relative_to(base_dir)
+            except ValueError:
+                raise Exception("Invalid file path")
+            token_path_resolved.write_text(creds.to_json())
         except Exception:
             return None
     return creds if (creds and creds.valid) else None
